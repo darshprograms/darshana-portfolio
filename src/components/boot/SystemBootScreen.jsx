@@ -1,0 +1,519 @@
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Volume2, VolumeX, ArrowRight, ShieldCheck, Zap, Bot, MessageSquare, Rocket } from 'lucide-react';
+
+const SystemBootScreen = ({ onComplete }) => {
+  const [speechBubbleText, setSpeechBubbleText] = useState("");
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const fullSpeechText = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems...";
+
+  // Web Audio Rocket Thrust & Supersonic Launch Sound
+  const playRocketLaunchSound = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+
+      // 1. Low-frequency rocket engine rumble
+      const bufferSize = ctx.sampleRate * 0.9;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const lowpass = ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.setValueAtTime(300, ctx.currentTime);
+      lowpass.frequency.linearRampToValueAtTime(1400, ctx.currentTime + 0.8);
+
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.1, ctx.currentTime);
+      noiseGain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.3);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.85);
+
+      noise.connect(lowpass);
+      lowpass.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noise.start(ctx.currentTime);
+
+      // 2. High-speed supersonic pitch riser whoosh
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(2400, ctx.currentTime + 0.7);
+
+      oscGain.gain.setValueAtTime(0.15, ctx.currentTime);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.75);
+
+      osc.connect(oscGain);
+      oscGain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8);
+    } catch (e) {}
+  };
+
+  // High-tech chord chime for system reveal
+  const playChime = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+
+      const freqs = [523.25, 659.25, 783.99, 1046.50];
+      freqs.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.08);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.2 + idx * 0.08);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + idx * 0.08);
+        osc.stop(ctx.currentTime + 1.3 + idx * 0.08);
+      });
+    } catch (e) {}
+  };
+
+  // Trigger speech synthesis
+  const triggerVoiceWelcome = () => {
+    if (isAudioMuted) return;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+      utterance.rate = 1.0;
+      utterance.pitch = 1.1;
+
+      const voices = window.speechSynthesis.getVoices();
+      const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+      }
+
+      setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Rocket Launch Ignition & Transition
+  const triggerRocketLaunch = () => {
+    if (isLaunching) return;
+    setIsLaunching(true);
+    playRocketLaunchSound();
+
+    setTimeout(() => {
+      onComplete();
+    }, 950);
+  };
+
+  useEffect(() => {
+    playChime();
+    triggerVoiceWelcome();
+
+    // Typewriter effect
+    let charIdx = 0;
+    const typeInterval = setInterval(() => {
+      if (charIdx <= fullSpeechText.length) {
+        setSpeechBubbleText(fullSpeechText.slice(0, charIdx));
+        charIdx++;
+      } else {
+        clearInterval(typeInterval);
+      }
+    }, 38);
+
+    // Auto trigger rocket launch after speaking
+    const autoLaunchTimer = setTimeout(() => {
+      triggerRocketLaunch();
+    }, 4200);
+
+    return () => {
+      clearInterval(typeInterval);
+      clearTimeout(autoLaunchTimer);
+    };
+  }, []);
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: '#070a13',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.5rem',
+        opacity: isLaunching ? 0.95 : 1,
+        transition: 'all 0.3s ease',
+        backgroundImage: `
+          radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.18) 0%, transparent 65%),
+          radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+          linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+        `,
+        backgroundSize: '100% 100%, 100% 100%, 40px 40px, 40px 40px'
+      }}
+    >
+      {/* Warp Speed Lines during Rocket Blast */}
+      {isLaunching && (
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 30 }}>
+          {[15, 30, 45, 60, 75, 90].map((left, idx) => (
+            <div
+              key={idx}
+              style={{
+                position: 'absolute',
+                left: `${left}%`,
+                top: 0,
+                bottom: 0,
+                width: '2px',
+                background: 'linear-gradient(to bottom, transparent, #06b6d4, #ffffff, transparent)',
+                boxShadow: '0 0 10px #06b6d4',
+                animation: `speedLine 0.4s linear infinite ${idx * 0.05}s`
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Top Bar Controls (Sound & Skip) */}
+      <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'center', zIndex: 60 }}>
+        <button
+          onClick={() => {
+            const nextMuted = !isAudioMuted;
+            setIsAudioMuted(nextMuted);
+            if (nextMuted && 'speechSynthesis' in window) {
+              window.speechSynthesis.cancel();
+            }
+          }}
+          className="eng-btn-ghost"
+          style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-secondary)' }}
+        >
+          {isAudioMuted ? <VolumeX size={14} /> : <Volume2 size={14} style={{ color: 'var(--accent-cyan)' }} />}
+          <span>{isAudioMuted ? 'AUDIO: OFF' : 'AUDIO: ON'}</span>
+        </button>
+
+        <button
+          onClick={triggerRocketLaunch}
+          className="eng-btn-ghost"
+          style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--accent-cyan-light)' }}
+        >
+          LAUNCH →
+        </button>
+      </div>
+
+      {/* Header Identity Badge */}
+      <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem', zIndex: 60 }}>
+        <div className="status-dot status-dot-cyan" />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--accent-cyan-light)', fontWeight: 600 }}>
+          DARSHANA_AKADKAR // AI_ASSISTANT_ONLINE
+        </span>
+      </div>
+
+      {/* Center 3D Floating AI Companion Robot */}
+      <div 
+        style={{
+          position: 'relative',
+          zIndex: 50,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          maxWidth: '680px',
+          width: '100%',
+          padding: '1.5rem'
+        }}
+      >
+        {/* 3D Robot & Pedestal Container */}
+        <div style={{ position: 'relative', width: '240px', height: '230px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
+          
+          {/* Glowing Hexagonal Neon Pedestal */}
+          <div 
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              width: '190px',
+              height: '42px',
+              borderRadius: '50%',
+              background: 'radial-gradient(ellipse at center, rgba(6, 182, 212, 0.55) 0%, rgba(6, 182, 212, 0.12) 50%, transparent 75%)',
+              border: '2px solid rgba(6, 182, 212, 0.65)',
+              boxShadow: '0 0 35px rgba(6, 182, 212, 0.8), inset 0 0 15px rgba(6, 182, 212, 0.4)',
+              transform: 'rotateX(65deg)',
+              animation: 'pedestalPulse 2s ease-in-out infinite alternate'
+            }}
+          />
+
+          {/* Pedestal Rotating Concentric Rings */}
+          <div 
+            style={{
+              position: 'absolute',
+              bottom: '5px',
+              width: '220px',
+              height: '52px',
+              borderRadius: '50%',
+              border: '1px dashed rgba(56, 189, 248, 0.45)',
+              transform: 'rotateX(65deg)',
+              animation: 'spinRing 10s linear infinite'
+            }}
+          />
+
+          {/* Floating Robot Character with Supersonic Rocket Blast Animation */}
+          <div 
+            style={{
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              animation: isLaunching 
+                ? 'rocketBlastOff 0.9s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards' 
+                : 'robotFloat 3s ease-in-out infinite alternate'
+            }}
+          >
+            {/* Robot Head & Body */}
+            <div 
+              style={{
+                width: '110px',
+                height: '110px',
+                borderRadius: '50% 50% 45% 45%',
+                background: 'linear-gradient(145deg, #ffffff 0%, #e2e8f0 55%, #94a3b8 100%)',
+                border: '3px solid #cbd5e1',
+                boxShadow: '0 15px 35px rgba(0, 0, 0, 0.6), inset 0 -4px 10px rgba(0,0,0,0.2), inset 0 4px 12px rgba(255,255,255,0.9), 0 0 25px rgba(6, 182, 212, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative'
+              }}
+            >
+              {/* Glossy Curved Visor Screen */}
+              <div 
+                style={{
+                  width: '82px',
+                  height: '54px',
+                  borderRadius: '26px',
+                  background: 'linear-gradient(180deg, #0b1120 0%, #030712 100%)',
+                  border: '2px solid rgba(6, 182, 212, 0.4)',
+                  boxShadow: 'inset 0 0 15px rgba(6, 182, 212, 0.5), 0 0 10px rgba(6, 182, 212, 0.4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                {/* Visor Glare Reflection */}
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: '4px',
+                    left: '12px',
+                    width: '32px',
+                    height: '8px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.3)',
+                    transform: 'rotate(-10deg)'
+                  }} 
+                />
+
+                {/* Expressive Glowing Cyan LED Eyes */}
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '4px' }}>
+                  <div 
+                    style={{
+                      width: '12px',
+                      height: '14px',
+                      borderRadius: '50%',
+                      background: '#00f3ff',
+                      boxShadow: '0 0 15px #00f3ff, 0 0 5px #ffffff',
+                      animation: 'eyeBlink 3.5s infinite'
+                    }} 
+                  />
+                  <div 
+                    style={{
+                      width: '12px',
+                      height: '14px',
+                      borderRadius: '50%',
+                      background: '#00f3ff',
+                      boxShadow: '0 0 15px #00f3ff, 0 0 5px #ffffff',
+                      animation: 'eyeBlink 3.5s infinite'
+                    }} 
+                  />
+                </div>
+
+                {/* Cute Smiling Mouth / Soundwave */}
+                <div 
+                  style={{
+                    width: isSpeaking ? '22px' : '14px',
+                    height: isSpeaking ? '6px' : '3px',
+                    borderRadius: '0 0 8px 8px',
+                    background: '#00f3ff',
+                    boxShadow: '0 0 8px #00f3ff',
+                    transition: 'all 0.2s ease'
+                  }} 
+                />
+              </div>
+
+              {/* Side Audio Thruster Ears */}
+              <div style={{ position: 'absolute', left: '-8px', width: '10px', height: '26px', borderRadius: '5px', background: '#94a3b8', border: '1px solid #64748b', boxShadow: 'inset 0 0 4px #06b6d4' }} />
+              <div style={{ position: 'absolute', right: '-8px', width: '10px', height: '26px', borderRadius: '5px', background: '#94a3b8', border: '1px solid #64748b', boxShadow: 'inset 0 0 4px #06b6d4' }} />
+
+              {/* Top Cyber Antenna */}
+              <div style={{ position: 'absolute', top: '-14px', width: '3px', height: '14px', background: '#94a3b8' }}>
+                <div style={{ position: 'absolute', top: '-6px', left: '-3px', width: '9px', height: '9px', borderRadius: '50%', background: '#00f3ff', boxShadow: '0 0 10px #00f3ff' }} />
+              </div>
+            </div>
+
+            {/* Glowing Ion / Rocket Thruster Flames */}
+            <div style={{ display: 'flex', gap: '28px', marginTop: '-4px' }}>
+              <div 
+                style={{
+                  width: isLaunching ? '22px' : '14px',
+                  height: isLaunching ? '80px' : '26px',
+                  background: isLaunching 
+                    ? 'linear-gradient(180deg, #ffffff 0%, #00f3ff 30%, #f59e0b 70%, transparent 100%)' 
+                    : 'linear-gradient(180deg, #00f3ff 0%, rgba(6, 182, 212, 0.4) 60%, transparent 100%)',
+                  borderRadius: '50%',
+                  filter: 'blur(2px)',
+                  boxShadow: isLaunching ? '0 0 35px #00f3ff, 0 0 20px #f59e0b' : '0 0 15px #00f3ff',
+                  animation: 'thrusterPulse 0.3s ease-in-out infinite alternate',
+                  transition: 'all 0.2s ease'
+                }} 
+              />
+              <div 
+                style={{
+                  width: isLaunching ? '22px' : '14px',
+                  height: isLaunching ? '80px' : '26px',
+                  background: isLaunching 
+                    ? 'linear-gradient(180deg, #ffffff 0%, #00f3ff 30%, #f59e0b 70%, transparent 100%)' 
+                    : 'linear-gradient(180deg, #00f3ff 0%, rgba(6, 182, 212, 0.4) 60%, transparent 100%)',
+                  borderRadius: '50%',
+                  filter: 'blur(2px)',
+                  boxShadow: isLaunching ? '0 0 35px #00f3ff, 0 0 20px #f59e0b' : '0 0 15px #00f3ff',
+                  animation: 'thrusterPulse 0.3s ease-in-out infinite alternate 0.1s',
+                  transition: 'all 0.2s ease'
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Live Speech Bubble */}
+        <div 
+          className="eng-card"
+          style={{ 
+            width: '100%',
+            background: 'rgba(18, 24, 38, 0.95)',
+            border: '1px solid rgba(6, 182, 212, 0.4)',
+            borderRadius: '10px',
+            padding: '1.25rem 1.5rem',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.15)',
+            marginBottom: '1.5rem',
+            opacity: isLaunching ? 0.3 : 1,
+            transform: isLaunching ? 'translateY(20px)' : 'translateY(0)',
+            transition: 'all 0.3s ease'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <MessageSquare size={15} style={{ color: 'var(--accent-cyan)' }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--accent-cyan-light)', fontWeight: 600 }}>
+                AI VOICE ASSISTANT:
+              </span>
+            </div>
+
+            {/* Equalizer Waveform */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '14px' }}>
+              {[8, 14, 6, 12, 14, 9, 13, 7].map((h, i) => (
+                <div 
+                  key={i}
+                  style={{
+                    width: '3px',
+                    height: isSpeaking ? `${h}px` : '3px',
+                    background: '#00f3ff',
+                    borderRadius: '1px',
+                    animation: isSpeaking ? `equalizer 0.7s ease-in-out infinite alternate ${i * 0.08}s` : 'none'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: '1.05rem', fontWeight: 500, color: '#f8fafc', lineHeight: 1.5 }}>
+            "{speechBubbleText}"
+            <span className="animate-pulse" style={{ color: '#00f3ff', fontWeight: 700 }}>|</span>
+          </p>
+        </div>
+
+        {/* Rocket Launch Action Button */}
+        <button
+          onClick={triggerRocketLaunch}
+          className="eng-btn eng-btn-primary"
+          style={{
+            width: '100%',
+            justifyContent: 'center',
+            padding: '0.9rem',
+            fontSize: '0.88rem',
+            letterSpacing: '0.04em',
+            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #10b981 100%)',
+            border: 'none',
+            boxShadow: '0 0 25px rgba(6, 182, 212, 0.6), 0 0 35px rgba(16, 185, 129, 0.4)'
+          }}
+        >
+          <Rocket size={17} style={{ color: '#ffffff' }} />
+          <span>LAUNCH ROCKET & ENTER PORTFOLIO</span>
+          <ArrowRight size={16} />
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes robotFloat {
+          0% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-16px) rotate(1.5deg); }
+          100% { transform: translateY(0px) rotate(0deg); }
+        }
+        @keyframes rocketBlastOff {
+          0% { transform: translateY(0px) scale(1); }
+          25% { transform: translateY(12px) scale(1.05); }
+          100% { transform: translateY(-1400px) scale(0.4); opacity: 0; filter: blur(4px); }
+        }
+        @keyframes pedestalPulse {
+          from { opacity: 0.6; box-shadow: 0 0 25px rgba(6, 182, 212, 0.6); }
+          to { opacity: 1; box-shadow: 0 0 45px rgba(6, 182, 212, 1); }
+        }
+        @keyframes thrusterPulse {
+          from { height: 22px; opacity: 0.8; }
+          to { height: 34px; opacity: 1; }
+        }
+        @keyframes eyeBlink {
+          0%, 92%, 100% { transform: scaleY(1); }
+          95% { transform: scaleY(0.1); }
+        }
+        @keyframes spinRing {
+          from { transform: rotateX(65deg) rotate(0deg); }
+          to { transform: rotateX(65deg) rotate(360deg); }
+        }
+        @keyframes equalizer {
+          0% { height: 3px; }
+          100% { height: 15px; }
+        }
+        @keyframes speedLine {
+          0% { transform: translateY(-100%); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(100%); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default SystemBootScreen;
