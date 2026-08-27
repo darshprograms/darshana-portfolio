@@ -103,12 +103,13 @@ const SystemBootScreen = ({ onComplete }) => {
     return pool[0] || null;
   };
 
-  // Trigger speech synthesis using strictly male voice
+  // Trigger speech synthesis using strictly male voice with mobile support
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
 
     try {
+      window.speechSynthesis.cancel();
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
@@ -116,7 +117,8 @@ const SystemBootScreen = ({ onComplete }) => {
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
       utterance.pitch = 0.95;
-      utterance.lang = 'en-US';
+      utterance.volume = 1.0;
+      utterance.lang = navigator.language || 'en-US';
 
       const voices = window.speechSynthesis.getVoices();
       if (voices && voices.length > 0) {
@@ -126,7 +128,9 @@ const SystemBootScreen = ({ onComplete }) => {
         }
       }
 
-      setIsSpeaking(true);
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+      };
       utterance.onend = () => {
         setIsSpeaking(false);
       };
@@ -137,6 +141,7 @@ const SystemBootScreen = ({ onComplete }) => {
       window._activeUtterance = utterance;
       window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
     } catch (e) {
       setIsSpeaking(false);
     }
@@ -157,14 +162,16 @@ const SystemBootScreen = ({ onComplete }) => {
     playChime();
     triggerVoiceWelcome();
 
-    // Tapping or clicking anywhere on the screen immediately wakes the audio engine
-    const handleScreenTap = () => {
+    // Mobile touch and pointer wake listeners
+    const handleTouchWake = () => {
       playChime();
       triggerVoiceWelcome();
     };
 
-    window.addEventListener('pointerdown', handleScreenTap, { once: true });
-    window.addEventListener('keydown', handleScreenTap, { once: true });
+    window.addEventListener('touchstart', handleTouchWake, { passive: true, once: true });
+    window.addEventListener('pointerdown', handleTouchWake, { passive: true, once: true });
+    window.addEventListener('click', handleTouchWake, { passive: true, once: true });
+    window.addEventListener('keydown', handleTouchWake, { once: true });
 
     // Typewriter effect
     let charIdx = 0;
@@ -185,8 +192,10 @@ const SystemBootScreen = ({ onComplete }) => {
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
-      window.removeEventListener('pointerdown', handleScreenTap);
-      window.removeEventListener('keydown', handleScreenTap);
+      window.removeEventListener('touchstart', handleTouchWake);
+      window.removeEventListener('pointerdown', handleTouchWake);
+      window.removeEventListener('click', handleTouchWake);
+      window.removeEventListener('keydown', handleTouchWake);
     };
   }, []);
 
@@ -510,6 +519,55 @@ const SystemBootScreen = ({ onComplete }) => {
           </p>
         </div>
 
+        {/* Animated Cyber Audio Pill Indicator */}
+        <div
+          onClick={() => {
+            playChime();
+            triggerVoiceWelcome();
+          }}
+          onTouchStart={() => {
+            playChime();
+            triggerVoiceWelcome();
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            padding: '0.35rem 0.85rem',
+            marginBottom: '0.85rem',
+            borderRadius: '999px',
+            background: isSpeaking ? 'rgba(6, 182, 212, 0.15)' : 'rgba(18, 24, 38, 0.7)',
+            border: isSpeaking ? '1px solid #00f3ff' : '1px solid rgba(6, 182, 212, 0.3)',
+            boxShadow: isSpeaking ? '0 0 15px rgba(6, 182, 212, 0.4)' : '0 0 10px rgba(0, 0, 0, 0.3)',
+            backdropFilter: 'blur(8px)',
+            cursor: 'pointer',
+            transition: 'all 0.25s ease',
+            animation: isSpeaking ? 'pulseGlow 2s infinite' : 'floatBadge 3s ease-in-out infinite'
+          }}
+        >
+          <div
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: isSpeaking ? '#10b981' : '#00f3ff',
+              boxShadow: isSpeaking ? '0 0 8px #10b981' : '0 0 8px #00f3ff'
+            }}
+          />
+          <Volume2 size={13} style={{ color: isSpeaking ? '#10b981' : '#00f3ff' }} />
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.72rem',
+              color: isSpeaking ? '#6ee7b7' : 'var(--accent-cyan-light)',
+              letterSpacing: '0.03em',
+              fontWeight: 500
+            }}
+          >
+            {isSpeaking ? 'AI_VOICE_STREAMING...' : 'TAP_TO_HEAR_VOICE 🔊'}
+          </span>
+        </div>
+
         {/* Rocket Launch Action Button */}
         <button
           onClick={triggerRocketLaunch}
@@ -698,6 +756,14 @@ const SystemBootScreen = ({ onComplete }) => {
           0% { transform: translateY(-100%); opacity: 0; }
           50% { opacity: 1; }
           100% { transform: translateY(100%); opacity: 0; }
+        }
+        @keyframes floatBadge {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-3px); }
+        }
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 15px rgba(6, 182, 212, 0.4); }
+          50% { box-shadow: 0 0 25px rgba(6, 182, 212, 0.8), 0 0 8px #00f3ff; }
         }
       `}</style>
     </div>
