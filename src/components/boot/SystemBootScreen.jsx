@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Volume2, VolumeX, ArrowRight, ShieldCheck, Zap, Bot, MessageSquare, Rocket } from 'lucide-react';
 
 const SystemBootScreen = ({ onComplete }) => {
   const [speechBubbleText, setSpeechBubbleText] = useState("");
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const hasSpokenRef = useRef(false);
 
   const fullSpeechText = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems...";
 
@@ -56,7 +56,7 @@ const SystemBootScreen = ({ onComplete }) => {
       oscGain.connect(ctx.destination);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.8);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // High-tech chord chime for system reveal
@@ -65,9 +65,6 @@ const SystemBootScreen = ({ onComplete }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
 
       const freqs = [523.25, 659.25, 783.99, 1046.50];
       freqs.forEach((freq, idx) => {
@@ -82,7 +79,7 @@ const SystemBootScreen = ({ onComplete }) => {
         osc.start(ctx.currentTime + idx * 0.08);
         osc.stop(ctx.currentTime + 1.3 + idx * 0.08);
       });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // Select strictly male voice across Windows, Mac, iOS, and Android
@@ -106,14 +103,13 @@ const SystemBootScreen = ({ onComplete }) => {
     return pool[0] || null;
   };
 
-  // Trigger speech synthesis strictly once on landing
+  // Trigger speech synthesis using strictly male voice with mobile support
   const triggerVoiceWelcome = () => {
+    if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
-    if (hasSpokenRef.current) return;
 
     try {
-      hasSpokenRef.current = true;
-
+      window.speechSynthesis.cancel();
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
@@ -157,11 +153,6 @@ const SystemBootScreen = ({ onComplete }) => {
     setIsLaunching(true);
     playRocketLaunchSound();
 
-    // Immediately stop speech when launching into portfolio
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-
     setTimeout(() => {
       onComplete();
     }, 950);
@@ -171,22 +162,18 @@ const SystemBootScreen = ({ onComplete }) => {
     playChime();
     triggerVoiceWelcome();
 
-    // Auto-trigger when mobile/browser voices finish loading if not spoken yet
+    // Auto-trigger when mobile/browser voices finish loading
     if ('speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.onvoiceschanged = null;
-        if (!hasSpokenRef.current) {
-          triggerVoiceWelcome();
-        }
+        triggerVoiceWelcome();
       };
     }
 
     // Mobile touch and pointer wake listeners
     const handleTouchWake = () => {
-      if (!hasSpokenRef.current) {
-        playChime();
-        triggerVoiceWelcome();
-      }
+      playChime();
+      triggerVoiceWelcome();
     };
 
     window.addEventListener('touchstart', handleTouchWake, { passive: true, once: true });
@@ -218,14 +205,13 @@ const SystemBootScreen = ({ onComplete }) => {
       window.removeEventListener('click', handleTouchWake);
       window.removeEventListener('keydown', handleTouchWake);
       if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
       }
     };
   }, []);
 
   return (
-    <div 
+    <div
       style={{
         position: 'fixed',
         inset: 0,
@@ -282,30 +268,23 @@ const SystemBootScreen = ({ onComplete }) => {
           </span>
         </div>
 
-        {/* Top Bar Controls (Direct Sound Play & Launch) */}
+        {/* Top Bar Controls (Sound & Launch) */}
         <div className="boot-nav-actions">
           <button
             onClick={() => {
-              hasSpokenRef.current = false;
-              playChime();
-              triggerVoiceWelcome();
-            }}
-            onTouchStart={() => {
-              hasSpokenRef.current = false;
-              playChime();
-              triggerVoiceWelcome();
+              const nextMuted = !isAudioMuted;
+              setIsAudioMuted(nextMuted);
+              if (nextMuted && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+              }
             }}
             className="eng-btn-ghost boot-ctrl-btn"
-            title="Play AI Voice Welcome"
-            aria-label="Play AI Voice Welcome"
-            style={{
-              borderColor: isSpeaking ? '#00f3ff' : 'var(--border-subtle)',
-              color: isSpeaking ? '#00f3ff' : 'var(--text-secondary)'
-            }}
+            title={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
+            aria-label={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
           >
-            <Volume2 size={14} style={{ color: isSpeaking ? '#00f3ff' : 'var(--accent-cyan)' }} />
-            <span className="boot-btn-text-full">{isSpeaking ? 'AI VOICE SPEAKING' : 'PLAY AUDIO'}</span>
-            <span className="boot-btn-text-short">{isSpeaking ? 'SPEAKING' : 'AUDIO'}</span>
+            {isAudioMuted ? <VolumeX size={14} /> : <Volume2 size={14} style={{ color: 'var(--accent-cyan)' }} />}
+            <span className="boot-btn-text-full">{isAudioMuted ? 'AUDIO: OFF' : 'AUDIO: ON'}</span>
+            <span className="boot-btn-text-short">{isAudioMuted ? 'OFF' : 'ON'}</span>
           </button>
 
           <button
@@ -320,7 +299,7 @@ const SystemBootScreen = ({ onComplete }) => {
       </header>
 
       {/* Center 3D Floating AI Companion Robot */}
-      <div 
+      <div
         className="boot-center-stage"
         style={{
           position: 'relative',
@@ -334,9 +313,9 @@ const SystemBootScreen = ({ onComplete }) => {
       >
         {/* 3D Robot & Pedestal Container */}
         <div style={{ position: 'relative', width: '240px', height: '230px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
-          
+
           {/* Glowing Hexagonal Neon Pedestal */}
-          <div 
+          <div
             style={{
               position: 'absolute',
               bottom: '10px',
@@ -352,7 +331,7 @@ const SystemBootScreen = ({ onComplete }) => {
           />
 
           {/* Pedestal Rotating Concentric Rings */}
-          <div 
+          <div
             style={{
               position: 'absolute',
               bottom: '5px',
@@ -366,19 +345,19 @@ const SystemBootScreen = ({ onComplete }) => {
           />
 
           {/* Floating Robot Character with Supersonic Rocket Blast Animation */}
-          <div 
+          <div
             style={{
               position: 'relative',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              animation: isLaunching 
-                ? 'rocketBlastOff 0.9s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards' 
+              animation: isLaunching
+                ? 'rocketBlastOff 0.9s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards'
                 : 'robotFloat 3s ease-in-out infinite alternate'
             }}
           >
             {/* Robot Head & Body */}
-            <div 
+            <div
               style={{
                 width: '110px',
                 height: '110px',
@@ -393,7 +372,7 @@ const SystemBootScreen = ({ onComplete }) => {
               }}
             >
               {/* Glossy Curved Visor Screen */}
-              <div 
+              <div
                 style={{
                   width: '82px',
                   height: '54px',
@@ -410,7 +389,7 @@ const SystemBootScreen = ({ onComplete }) => {
                 }}
               >
                 {/* Visor Glare Reflection */}
-                <div 
+                <div
                   style={{
                     position: 'absolute',
                     top: '4px',
@@ -425,7 +404,7 @@ const SystemBootScreen = ({ onComplete }) => {
 
                 {/* Expressive Glowing Cyan LED Eyes */}
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '4px' }}>
-                  <div 
+                  <div
                     style={{
                       width: '12px',
                       height: '14px',
@@ -433,9 +412,9 @@ const SystemBootScreen = ({ onComplete }) => {
                       background: '#00f3ff',
                       boxShadow: '0 0 15px #00f3ff, 0 0 5px #ffffff',
                       animation: 'eyeBlink 3.5s infinite'
-                    }} 
+                    }}
                   />
-                  <div 
+                  <div
                     style={{
                       width: '12px',
                       height: '14px',
@@ -443,12 +422,12 @@ const SystemBootScreen = ({ onComplete }) => {
                       background: '#00f3ff',
                       boxShadow: '0 0 15px #00f3ff, 0 0 5px #ffffff',
                       animation: 'eyeBlink 3.5s infinite'
-                    }} 
+                    }}
                   />
                 </div>
 
                 {/* Cute Smiling Mouth / Soundwave */}
-                <div 
+                <div
                   style={{
                     width: isSpeaking ? '22px' : '14px',
                     height: isSpeaking ? '6px' : '3px',
@@ -456,7 +435,7 @@ const SystemBootScreen = ({ onComplete }) => {
                     background: '#00f3ff',
                     boxShadow: '0 0 8px #00f3ff',
                     transition: 'all 0.2s ease'
-                  }} 
+                  }}
                 />
               </div>
 
@@ -472,42 +451,42 @@ const SystemBootScreen = ({ onComplete }) => {
 
             {/* Glowing Ion / Rocket Thruster Flames */}
             <div style={{ display: 'flex', gap: '28px', marginTop: '-4px' }}>
-              <div 
+              <div
                 style={{
                   width: isLaunching ? '22px' : '14px',
                   height: isLaunching ? '80px' : '26px',
-                  background: isLaunching 
-                    ? 'linear-gradient(180deg, #ffffff 0%, #00f3ff 30%, #f59e0b 70%, transparent 100%)' 
+                  background: isLaunching
+                    ? 'linear-gradient(180deg, #ffffff 0%, #00f3ff 30%, #f59e0b 70%, transparent 100%)'
                     : 'linear-gradient(180deg, #00f3ff 0%, rgba(6, 182, 212, 0.4) 60%, transparent 100%)',
                   borderRadius: '50%',
                   filter: 'blur(2px)',
                   boxShadow: isLaunching ? '0 0 35px #00f3ff, 0 0 20px #f59e0b' : '0 0 15px #00f3ff',
                   animation: 'thrusterPulse 0.3s ease-in-out infinite alternate',
                   transition: 'all 0.2s ease'
-                }} 
+                }}
               />
-              <div 
+              <div
                 style={{
                   width: isLaunching ? '22px' : '14px',
                   height: isLaunching ? '80px' : '26px',
-                  background: isLaunching 
-                    ? 'linear-gradient(180deg, #ffffff 0%, #00f3ff 30%, #f59e0b 70%, transparent 100%)' 
+                  background: isLaunching
+                    ? 'linear-gradient(180deg, #ffffff 0%, #00f3ff 30%, #f59e0b 70%, transparent 100%)'
                     : 'linear-gradient(180deg, #00f3ff 0%, rgba(6, 182, 212, 0.4) 60%, transparent 100%)',
                   borderRadius: '50%',
                   filter: 'blur(2px)',
                   boxShadow: isLaunching ? '0 0 35px #00f3ff, 0 0 20px #f59e0b' : '0 0 15px #00f3ff',
                   animation: 'thrusterPulse 0.3s ease-in-out infinite alternate 0.1s',
                   transition: 'all 0.2s ease'
-                }} 
+                }}
               />
             </div>
           </div>
         </div>
 
         {/* Live Speech Bubble */}
-        <div 
+        <div
           className="eng-card"
-          style={{ 
+          style={{
             width: '100%',
             background: 'rgba(18, 24, 38, 0.95)',
             border: '1px solid rgba(6, 182, 212, 0.4)',
@@ -531,7 +510,7 @@ const SystemBootScreen = ({ onComplete }) => {
             {/* Equalizer Waveform */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '14px' }}>
               {[8, 14, 6, 12, 14, 9, 13, 7].map((h, i) => (
-                <div 
+                <div
                   key={i}
                   style={{
                     width: '3px',
