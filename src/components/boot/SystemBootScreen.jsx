@@ -82,143 +82,54 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Select female voice reliably across Windows, Mac, iOS, Android, and Linux
-  const selectFemaleVoice = (voices) => {
-    if (!voices || !Array.isArray(voices) || voices.length === 0) return null;
-
-    const maleKeywords = [
-      'david', 'mark', 'george', 'ravi', 'steffan', 'guy', 'male', 'man', 'boy',
-      'alex', 'fred', 'daniel', 'richard', 'oliver', 'thomas', 'ryan', 'eric',
-      'christopher', 'james', 'john', 'paul', 'matthew', 'brian', 'sean', 'michael',
-      'arthur', 'desktop - english (united states) david'
-    ];
-
-    const priorityFemaleKeywords = [
-      'samantha',
-      'victoria',
-      'karen',
-      'zira',
-      'jenny',
-      'aria',
-      'hazel',
-      'susan',
-      'catherine',
-      'heera',
-      'neerja',
-      'serena',
-      'ava',
-      'allison',
-      'fiona',
-      'moira',
-      'tessa',
-      'veena',
-      'google us english',
-      'google uk english female',
-      'female'
-    ];
-
-    const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    const candidatePool = enVoices.length > 0 ? enVoices : voices;
-
-    for (const kw of priorityFemaleKeywords) {
-      const matched = candidatePool.find(v => {
-        const name = (v.name || '').toLowerCase();
-        const isMale = maleKeywords.some(m => name.includes(m));
-        return !isMale && name.includes(kw);
-      });
-      if (matched) return matched;
-    }
-
-    const genericFemale = candidatePool.find(v => {
-      const name = (v.name || '').toLowerCase();
-      const isMale = maleKeywords.some(m => name.includes(m));
-      return !isMale && (name.includes('female') || name.includes('woman') || name.includes('natural'));
-    });
-    if (genericFemale) return genericFemale;
-
-    const nonMale = candidatePool.find(v => {
-      const name = (v.name || '').toLowerCase();
-      return !maleKeywords.some(m => name.includes(m));
-    });
-    if (nonMale) return nonMale;
-
-    return candidatePool[0] || null;
-  };
-
-  // Trigger speech synthesis automatically on load
+  // Trigger speech synthesis with guaranteed female voice on both first load and replay
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
-    if (window._hasAutoSpoken) return;
 
-    const performSpeak = (availableVoices) => {
-      if (window._hasAutoSpoken) return;
-      window._hasAutoSpoken = true;
+    const voices = window.speechSynthesis.getVoices();
 
-      try {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-
-        const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-        utterance.rate = 1.0;
-        utterance.pitch = 1.15;
-        utterance.volume = 1.0;
-        utterance.lang = 'en-US';
-
-        const femaleVoice = selectFemaleVoice(availableVoices);
-        if (femaleVoice) {
-          utterance.voice = femaleVoice;
-        }
-
-        utterance.onstart = () => {
-          setIsSpeaking(true);
-        };
-
-        utterance.onend = () => {
-          setIsSpeaking(false);
-        };
-
-        utterance.onerror = () => {
-          setIsSpeaking(false);
-        };
-
-        window._activeUtterance = utterance;
-
-        window.speechSynthesis.resume();
-        window.speechSynthesis.speak(utterance);
-        setIsSpeaking(true);
-
-        // Keep speech synthesis active in Chromium background
-        const engineHeartbeat = setInterval(() => {
-          if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
-            clearInterval(engineHeartbeat);
-          } else if (window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-          }
-        }, 100);
-      } catch (e) {
-        setIsSpeaking(false);
-      }
-    };
-
-    const initialVoices = window.speechSynthesis.getVoices();
-    if (initialVoices && initialVoices.length > 0) {
-      performSpeak(initialVoices);
-    } else {
+    // If voices are not ready yet on cold start, wait for onvoiceschanged
+    if (!voices || voices.length === 0) {
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.onvoiceschanged = null;
-        performSpeak(window.speechSynthesis.getVoices());
+        triggerVoiceWelcome();
       };
-
-      // Fallback timer if onvoiceschanged doesn't trigger
-      setTimeout(() => {
-        if (!window._hasAutoSpoken) {
-          window.speechSynthesis.onvoiceschanged = null;
-          performSpeak(window.speechSynthesis.getVoices());
-        }
-      }, 100);
+      return;
     }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+    utterance.rate = 1.0;
+    utterance.pitch = 1.15;
+    utterance.lang = 'en-US';
+
+    const femaleVoice = voices.find(v =>
+      (v.name.includes('Zira') ||
+       v.name.includes('Samantha') ||
+       v.name.includes('Victoria') ||
+       v.name.includes('Karen') ||
+       v.name.includes('Jenny') ||
+       v.name.includes('Aria') ||
+       v.name.includes('Natural') ||
+       v.name.includes('Google') ||
+       v.name.includes('Female')) &&
+      (v.lang || '').startsWith('en')
+    );
+
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    setIsSpeaking(true);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+    };
+
+    window.speechSynthesis.speak(utterance);
   };
 
   // Rocket Launch Ignition & Transition
@@ -233,7 +144,6 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   useEffect(() => {
-    window._hasAutoSpoken = false;
     playChime();
     triggerVoiceWelcome();
 
@@ -251,7 +161,7 @@ const SystemBootScreen = ({ onComplete }) => {
     // Auto trigger rocket launch after speaking
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 5500);
+    }, 4500);
 
     return () => {
       clearInterval(typeInterval);
