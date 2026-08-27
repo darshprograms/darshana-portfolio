@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Volume2, VolumeX, ArrowRight, ShieldCheck, Zap, Bot, MessageSquare, Rocket } from 'lucide-react';
 
 const SystemBootScreen = ({ onComplete }) => {
@@ -8,6 +8,19 @@ const SystemBootScreen = ({ onComplete }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const fullSpeechText = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems...";
+  const speechSentence = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems.";
+
+  const utteranceRef = useRef(null);
+  const isSpeakingRef = useRef(false);
+  const hasStartedRef = useRef(false);
+  const launchTimerRef = useRef(null);
+  const fallbackTimerRef = useRef(null);
+  const resumeIntervalRef = useRef(null);
+  const isAudioMutedRef = useRef(isAudioMuted);
+
+  useEffect(() => {
+    isAudioMutedRef.current = isAudioMuted;
+  }, [isAudioMuted]);
 
   // Web Audio Rocket Thrust & Supersonic Launch Sound
   const playRocketLaunchSound = () => {
@@ -103,54 +116,15 @@ const SystemBootScreen = ({ onComplete }) => {
     return pool[0] || null;
   };
 
-  // Trigger speech synthesis using strictly male voice with mobile support
-  const triggerVoiceWelcome = () => {
-    if (isAudioMuted) return;
-    if (!('speechSynthesis' in window)) return;
-
-    try {
-      window.speechSynthesis.cancel();
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-      utterance.rate = 1.0;
-      utterance.pitch = 0.95;
-      utterance.volume = 1.0;
-      utterance.lang = navigator.language || 'en-US';
-
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const maleVoice = selectMaleVoice(voices);
-        if (maleVoice) {
-          utterance.voice = maleVoice;
-        }
-      }
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-      };
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
-
-      window._activeUtterance = utterance;
-      window.speechSynthesis.resume();
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-    } catch (e) {
-      setIsSpeaking(false);
-    }
-  };
-
   // Rocket Launch Ignition & Transition
   const triggerRocketLaunch = () => {
     if (isLaunching) return;
     setIsLaunching(true);
+
+    if (launchTimerRef.current) clearTimeout(launchTimerRef.current);
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
+
     playRocketLaunchSound();
 
     // Immediately stop voice the moment rocket launch begins
@@ -166,6 +140,98 @@ const SystemBootScreen = ({ onComplete }) => {
     }, 950);
   };
 
+  // Trigger speech synthesis speaking the WHOLE sentence smoothly
+  const triggerVoiceWelcome = () => {
+    if (isAudioMutedRef.current) return;
+    if (!('speechSynthesis' in window)) return;
+    if (hasStartedRef.current && isSpeakingRef.current) return; // Don't interrupt if already speaking
+
+    try {
+      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(speechSentence);
+      utterance.rate = 0.98;
+      utterance.pitch = 0.95;
+      utterance.volume = 1.0;
+      utterance.lang = navigator.language || 'en-US';
+
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const maleVoice = selectMaleVoice(voices);
+        if (maleVoice) {
+          utterance.voice = maleVoice;
+        }
+      }
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        isSpeakingRef.current = true;
+        hasStartedRef.current = true;
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        // Smoothly launch rocket after the complete sentence is spoken
+        if (launchTimerRef.current) clearTimeout(launchTimerRef.current);
+        launchTimerRef.current = setTimeout(() => {
+          triggerRocketLaunch();
+        }, 750);
+      };
+
+      utterance.onerror = (e) => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+      };
+
+      utteranceRef.current = utterance;
+      window._activeSpeechUtterance = utterance; // Prevent garbage collection in Chrome
+
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
+      isSpeakingRef.current = true;
+      hasStartedRef.current = true;
+    } catch (e) {
+      setIsSpeaking(false);
+      isSpeakingRef.current = false;
+    }
+  };
+
+  const handleToggleAudio = () => {
+    const nextMuted = !isAudioMuted;
+    setIsAudioMuted(nextMuted);
+    isAudioMutedRef.current = nextMuted;
+    if (nextMuted) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsSpeaking(false);
+      isSpeakingRef.current = false;
+    } else {
+      hasStartedRef.current = false;
+      triggerVoiceWelcome();
+    }
+  };
+
+  // Keep-alive mechanism to prevent browser from pausing long speech synthesis
+  useEffect(() => {
+    resumeIntervalRef.current = setInterval(() => {
+      if ('speechSynthesis' in window) {
+        if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      }
+    }, 250);
+
+    return () => {
+      if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     playChime();
     triggerVoiceWelcome();
@@ -174,14 +240,18 @@ const SystemBootScreen = ({ onComplete }) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.onvoiceschanged = null;
-        triggerVoiceWelcome();
+        if (!hasStartedRef.current) {
+          triggerVoiceWelcome();
+        }
       };
     }
 
-    // Mobile touch and pointer wake listeners
+    // Mobile touch and pointer wake listeners for autoplay policy compliance
     const handleTouchWake = () => {
-      playChime();
-      triggerVoiceWelcome();
+      if (!hasStartedRef.current && !isAudioMutedRef.current) {
+        playChime();
+        triggerVoiceWelcome();
+      }
     };
 
     window.addEventListener('touchstart', handleTouchWake, { passive: true, once: true });
@@ -189,7 +259,7 @@ const SystemBootScreen = ({ onComplete }) => {
     window.addEventListener('click', handleTouchWake, { passive: true, once: true });
     window.addEventListener('keydown', handleTouchWake, { once: true });
 
-    // Typewriter effect
+    // Typewriter effect matching speech
     let charIdx = 0;
     const typeInterval = setInterval(() => {
       if (charIdx <= fullSpeechText.length) {
@@ -200,14 +270,16 @@ const SystemBootScreen = ({ onComplete }) => {
       }
     }, 38);
 
-    // Auto trigger rocket launch after speaking
-    const autoLaunchTimer = setTimeout(() => {
+    // Fallback auto launch timer in case speech is disabled, unsupported, or blocked
+    fallbackTimerRef.current = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4200);
+    }, 6800);
 
     return () => {
       clearInterval(typeInterval);
-      clearTimeout(autoLaunchTimer);
+      if (launchTimerRef.current) clearTimeout(launchTimerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
       window.removeEventListener('touchstart', handleTouchWake);
       window.removeEventListener('pointerdown', handleTouchWake);
       window.removeEventListener('click', handleTouchWake);
@@ -280,13 +352,7 @@ const SystemBootScreen = ({ onComplete }) => {
         {/* Top Bar Controls (Sound & Launch) */}
         <div className="boot-nav-actions">
           <button
-            onClick={() => {
-              const nextMuted = !isAudioMuted;
-              setIsAudioMuted(nextMuted);
-              if (nextMuted && 'speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-              }
-            }}
+            onClick={handleToggleAudio}
             className="eng-btn-ghost boot-ctrl-btn"
             title={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
             aria-label={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
