@@ -162,6 +162,14 @@ const SystemBootScreen = ({ onComplete }) => {
     playChime();
     triggerVoiceWelcome();
 
+    // Auto-trigger when mobile/browser voices finish loading
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        triggerVoiceWelcome();
+      };
+    }
+
     // Mobile touch and pointer wake listeners
     const handleTouchWake = () => {
       playChime();
@@ -196,6 +204,9 @@ const SystemBootScreen = ({ onComplete }) => {
       window.removeEventListener('pointerdown', handleTouchWake);
       window.removeEventListener('click', handleTouchWake);
       window.removeEventListener('keydown', handleTouchWake);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
     };
   }, []);
 
@@ -517,55 +528,6 @@ const SystemBootScreen = ({ onComplete }) => {
             "{speechBubbleText}"
             <span className="animate-pulse" style={{ color: '#00f3ff', fontWeight: 700 }}>|</span>
           </p>
-        </div>
-
-        {/* Animated Cyber Audio Pill Indicator */}
-        <div
-          onClick={() => {
-            playChime();
-            triggerVoiceWelcome();
-          }}
-          onTouchStart={() => {
-            playChime();
-            triggerVoiceWelcome();
-          }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.45rem',
-            padding: '0.35rem 0.85rem',
-            marginBottom: '0.85rem',
-            borderRadius: '999px',
-            background: isSpeaking ? 'rgba(6, 182, 212, 0.15)' : 'rgba(18, 24, 38, 0.7)',
-            border: isSpeaking ? '1px solid #00f3ff' : '1px solid rgba(6, 182, 212, 0.3)',
-            boxShadow: isSpeaking ? '0 0 15px rgba(6, 182, 212, 0.4)' : '0 0 10px rgba(0, 0, 0, 0.3)',
-            backdropFilter: 'blur(8px)',
-            cursor: 'pointer',
-            transition: 'all 0.25s ease',
-            animation: isSpeaking ? 'pulseGlow 2s infinite' : 'floatBadge 3s ease-in-out infinite'
-          }}
-        >
-          <div
-            style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: isSpeaking ? '#10b981' : '#00f3ff',
-              boxShadow: isSpeaking ? '0 0 8px #10b981' : '0 0 8px #00f3ff'
-            }}
-          />
-          <Volume2 size={13} style={{ color: isSpeaking ? '#10b981' : '#00f3ff' }} />
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.72rem',
-              color: isSpeaking ? '#6ee7b7' : 'var(--accent-cyan-light)',
-              letterSpacing: '0.03em',
-              fontWeight: 500
-            }}
-          >
-            {isSpeaking ? 'AI_VOICE_STREAMING...' : 'TAP_TO_HEAR_VOICE 🔊'}
-          </span>
         </div>
 
         {/* Rocket Launch Action Button */}
