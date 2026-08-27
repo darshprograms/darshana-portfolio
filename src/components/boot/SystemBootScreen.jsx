@@ -65,9 +65,6 @@ const SystemBootScreen = ({ onComplete }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
 
       const freqs = [523.25, 659.25, 783.99, 1046.50];
       freqs.forEach((freq, idx) => {
@@ -85,38 +82,27 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis automatically on load
+  // Trigger speech synthesis
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
-    if (!('speechSynthesis' in window)) return;
-
-    try {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.lang = 'en-US';
+      utterance.pitch = 1.1;
 
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-      };
+      const voices = window.speechSynthesis.getVoices();
+      const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+      }
+
+      setIsSpeaking(true);
       utterance.onend = () => {
         setIsSpeaking(false);
       };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
 
-      window._activeUtterance = utterance;
-
-      window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-    } catch (e) {
-      setIsSpeaking(false);
     }
   };
 
@@ -132,39 +118,8 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   useEffect(() => {
-    window._hasAutoSpoken = false;
     playChime();
     triggerVoiceWelcome();
-
-    // 1. Voice arrival handler (asynchronous cold loads)
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        triggerVoiceWelcome();
-      };
-    }
-
-    // 2. Continuous speech engine kickstart
-    const kickstart = setInterval(() => {
-      if (!('speechSynthesis' in window) || window._hasAutoSpoken) {
-        clearInterval(kickstart);
-        return;
-      }
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-    }, 40);
-
-    // 3. Ambient environmental audio wakeups (cursor motion, hover, focus, touch)
-    const handleAmbientWake = () => {
-      if (!window._hasAutoSpoken) {
-        playChime();
-        triggerVoiceWelcome();
-      }
-    };
-
-    const ambientEvents = ['pointermove', 'mousemove', 'touchstart', 'touchmove', 'focus', 'wheel', 'scroll', 'pointerdown'];
-    ambientEvents.forEach(evt => window.addEventListener(evt, handleAmbientWake, { passive: true, once: true }));
 
     // Typewriter effect
     let charIdx = 0;
@@ -180,17 +135,11 @@ const SystemBootScreen = ({ onComplete }) => {
     // Auto trigger rocket launch after speaking
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4500);
+    }, 4200);
 
     return () => {
-      clearInterval(kickstart);
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
-      ambientEvents.forEach(evt => window.removeEventListener(evt, handleAmbientWake));
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.onvoiceschanged = null;
-      }
     };
   }, []);
 
