@@ -109,7 +109,6 @@ const SystemBootScreen = ({ onComplete }) => {
     if (!('speechSynthesis' in window)) return;
 
     try {
-      window.speechSynthesis.cancel();
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
