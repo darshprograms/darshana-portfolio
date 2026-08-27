@@ -145,49 +145,79 @@ const SystemBootScreen = ({ onComplete }) => {
     return candidatePool[0] || null;
   };
 
-  // Trigger speech synthesis
-  const triggerVoiceWelcome = (force = false) => {
-    if (isAudioMuted && !force) return;
+  // Trigger speech synthesis automatically on load
+  const triggerVoiceWelcome = () => {
+    if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
+    if (window._hasAutoSpoken) return;
 
-    try {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
+    const performSpeak = (availableVoices) => {
+      if (window._hasAutoSpoken) return;
+      window._hasAutoSpoken = true;
 
-      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-      utterance.rate = 1.0;
-      utterance.pitch = 1.15;
-      utterance.volume = 1.0;
-      utterance.lang = 'en-US';
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
 
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const femaleVoice = selectFemaleVoice(voices);
+        const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+        utterance.rate = 1.0;
+        utterance.pitch = 1.15;
+        utterance.volume = 1.0;
+        utterance.lang = 'en-US';
+
+        const femaleVoice = selectFemaleVoice(availableVoices);
         if (femaleVoice) {
           utterance.voice = femaleVoice;
         }
-      }
 
-      utterance.onstart = () => {
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+        };
+
+        utterance.onend = () => {
+          setIsSpeaking(false);
+        };
+
+        utterance.onerror = () => {
+          setIsSpeaking(false);
+        };
+
+        window._activeUtterance = utterance;
+
+        window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utterance);
         setIsSpeaking(true);
-      };
 
-      utterance.onend = () => {
+        // Keep speech synthesis active in Chromium background
+        const engineHeartbeat = setInterval(() => {
+          if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
+            clearInterval(engineHeartbeat);
+          } else if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+        }, 100);
+      } catch (e) {
         setIsSpeaking(false);
+      }
+    };
+
+    const initialVoices = window.speechSynthesis.getVoices();
+    if (initialVoices && initialVoices.length > 0) {
+      performSpeak(initialVoices);
+    } else {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        performSpeak(window.speechSynthesis.getVoices());
       };
 
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
-
-      window._activeUtterance = utterance;
-
-      window.speechSynthesis.resume();
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-    } catch (e) {
-      setIsSpeaking(false);
+      // Fallback timer if onvoiceschanged doesn't trigger
+      setTimeout(() => {
+        if (!window._hasAutoSpoken) {
+          window.speechSynthesis.onvoiceschanged = null;
+          performSpeak(window.speechSynthesis.getVoices());
+        }
+      }, 100);
     }
   };
 
@@ -203,24 +233,9 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   useEffect(() => {
+    window._hasAutoSpoken = false;
     playChime();
     triggerVoiceWelcome();
-
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        triggerVoiceWelcome();
-      };
-    }
-
-    // Passive unlock listener for deployed production domains and mobile
-    const handleFirstTouch = () => {
-      playChime();
-      triggerVoiceWelcome(true);
-    };
-
-    window.addEventListener('click', handleFirstTouch, { passive: true, once: true });
-    window.addEventListener('touchstart', handleFirstTouch, { passive: true, once: true });
 
     // Typewriter effect
     let charIdx = 0;
@@ -241,8 +256,6 @@ const SystemBootScreen = ({ onComplete }) => {
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
-      window.removeEventListener('click', handleFirstTouch);
-      window.removeEventListener('touchstart', handleFirstTouch);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
