@@ -177,121 +177,62 @@ const SystemBootScreen = ({ onComplete }) => {
     }, 950);
   };
 
-  // Trigger speech synthesis with female voice guarantee & automatic cold-start playback
-  const triggerVoiceWelcome = (force = false) => {
-    if (isAudioMutedRef.current && !force) return;
-    if (!('speechSynthesis' in window)) return;
-    if (hasSpokenRef.current && !force) return;
-
-    const speakCore = () => {
-      if (isAudioMutedRef.current && !force) return;
-      if (hasSpokenRef.current && !force) return;
-
+  // Trigger speech synthesis with guaranteed female voice
+  const triggerVoiceWelcome = () => {
+    if (isAudioMutedRef.current) return;
+    if ('speechSynthesis' in window) {
       try {
+        window.speechSynthesis.cancel();
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
 
         const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
         utterance.rate = 1.0;
-        utterance.pitch = 1.15; // Set clear, pleasant female assistant tone
+        utterance.pitch = 1.15;
         utterance.volume = 1.0;
         utterance.lang = 'en-US';
 
-        const availableVoices = window.speechSynthesis.getVoices();
-        const femaleVoice = selectFemaleVoice(availableVoices);
+        const voices = window.speechSynthesis.getVoices();
+        const femaleVoice = selectFemaleVoice(voices);
         if (femaleVoice) {
           utterance.voice = femaleVoice;
         }
 
         utterance.onstart = () => {
-          hasSpokenRef.current = true;
           setIsSpeaking(true);
         };
+
         utterance.onend = () => {
           setIsSpeaking(false);
-          const elapsed = Date.now() - mountTimeRef.current;
-          // Only trigger if voice actually played (> 2.0s) to prevent premature dismiss
-          if (elapsed >= 2000) {
-            setTimeout(() => {
-              triggerRocketLaunch();
-            }, 250);
-          }
         };
+
         utterance.onerror = () => {
           setIsSpeaking(false);
         };
 
-        // Retain utterance reference in window & ref to prevent garbage collection
         utteranceRef.current = utterance;
         window._activeUtterance = utterance;
 
-        // Resume engine and speak immediately
-        window.speechSynthesis.resume();
         window.speechSynthesis.speak(utterance);
-
-        // Continuous resume heartbeat for background speech engine
-        const resumeHeartbeat = setInterval(() => {
-          if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
-            clearInterval(resumeHeartbeat);
-          } else if (window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-          }
-        }, 100);
-      } catch (err) {
+        setIsSpeaking(true);
+      } catch (e) {
         setIsSpeaking(false);
       }
-    };
-
-    const initialVoices = window.speechSynthesis.getVoices();
-    if (initialVoices && initialVoices.length > 0) {
-      speakCore();
-    } else {
-      // Chrome/Chromium asynchronous voice population on initial page load
-      const handleVoicesChanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        speakCore();
-      };
-      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
-
-      // Fallback timer if onvoiceschanged doesn't trigger
-      setTimeout(() => {
-        if (!hasSpokenRef.current) {
-          speakCore();
-        }
-      }, 100);
-    }
-  };
-
-  const handleFirstGesture = () => {
-    if (!hasSpokenRef.current && !isAudioMutedRef.current) {
-      playChime();
-      triggerVoiceWelcome(true);
     }
   };
 
   useEffect(() => {
-    mountTimeRef.current = Date.now();
     playChime();
-    triggerVoiceWelcome(false);
+    triggerVoiceWelcome();
 
-    // Automatic startup retry loop: ensures speech kicks off automatically as soon as browser is ready
-    let attempts = 0;
-    const autoSpeechInterval = setInterval(() => {
-      attempts++;
-      if (hasSpokenRef.current || isAudioMutedRef.current || attempts > 8) {
-        clearInterval(autoSpeechInterval);
-      } else if ('speechSynthesis' in window) {
-        window.speechSynthesis.resume();
-        triggerVoiceWelcome(false);
-      }
-    }, 200);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        triggerVoiceWelcome();
+      };
+    }
 
-    window.addEventListener('click', handleFirstGesture, { passive: true });
-    window.addEventListener('touchstart', handleFirstGesture, { passive: true });
-    window.addEventListener('pointerdown', handleFirstGesture, { passive: true });
-
-    // Typewriter effect synchronized with speech length
+    // Typewriter effect
     let charIdx = 0;
     const typeInterval = setInterval(() => {
       if (charIdx <= fullSpeechText.length) {
@@ -300,20 +241,16 @@ const SystemBootScreen = ({ onComplete }) => {
       } else {
         clearInterval(typeInterval);
       }
-    }, 34);
+    }, 38);
 
-    // Natural launch timer gives adequate time for voice to complete and user to view screen
+    // Auto trigger rocket launch after speaking
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4200);
+    }, 5500);
 
     return () => {
       clearInterval(typeInterval);
-      clearInterval(autoSpeechInterval);
       clearTimeout(autoLaunchTimer);
-      window.removeEventListener('click', handleFirstGesture);
-      window.removeEventListener('touchstart', handleFirstGesture);
-      window.removeEventListener('pointerdown', handleFirstGesture);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
@@ -323,8 +260,6 @@ const SystemBootScreen = ({ onComplete }) => {
 
   return (
     <div 
-      onClick={handleFirstGesture}
-      onTouchStart={handleFirstGesture}
       style={{
         position: 'fixed',
         inset: 0,
@@ -384,8 +319,7 @@ const SystemBootScreen = ({ onComplete }) => {
         {/* Top Bar Controls (Sound & Launch) */}
         <div className="boot-nav-actions">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={() => {
               const nextMuted = !isAudioMuted;
               setIsAudioMuted(nextMuted);
               isAudioMutedRef.current = nextMuted;
@@ -395,7 +329,7 @@ const SystemBootScreen = ({ onComplete }) => {
                 }
                 setIsSpeaking(false);
               } else {
-                triggerVoiceWelcome(true);
+                triggerVoiceWelcome();
               }
             }}
             className="eng-btn-ghost boot-ctrl-btn"
