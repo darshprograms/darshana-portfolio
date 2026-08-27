@@ -406,17 +406,6 @@ const SystemBootScreen = ({ onComplete }) => {
         {/* Top Bar Controls (Sound & Launch) */}
         <div className="boot-nav-actions">
           <button
-            onClick={handleToggleAudio}
-            className="eng-btn-ghost boot-ctrl-btn"
-            title={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
-            aria-label={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
-          >
-            {isAudioMuted ? <VolumeX size={14} /> : <Volume2 size={14} style={{ color: 'var(--accent-cyan)' }} />}
-            <span className="boot-btn-text-full">{isAudioMuted ? 'AUDIO: OFF' : 'AUDIO: ON'}</span>
-            <span className="boot-btn-text-short">{isAudioMuted ? 'OFF' : 'ON'}</span>
-          </button>
-
-          <button
             onClick={triggerRocketLaunch}
             className="eng-btn-ghost boot-ctrl-btn boot-launch-btn"
             title="Launch and enter portfolio"
