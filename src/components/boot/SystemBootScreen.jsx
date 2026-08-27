@@ -659,24 +659,44 @@ const SystemBootScreen = ({ onComplete }) => {
           </p>
         </div>
 
-        {/* Rocket Launch Action Button */}
+        {/* Rocket Launch / Voice Initialize Action Button */}
         <button
-          onClick={triggerRocketLaunch}
+          onClick={(e) => {
+            if (!hasSpokenRef.current && !isSpeaking) {
+              triggerAllAudio();
+            } else {
+              triggerRocketLaunch(e);
+            }
+          }}
           className="eng-btn eng-btn-primary"
           style={{
             width: '100%',
             justifyContent: 'center',
-            padding: '0.9rem',
+            padding: '0.95rem',
             fontSize: '0.88rem',
+            fontWeight: 600,
             letterSpacing: '0.04em',
-            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #10b981 100%)',
+            background: isSpeaking
+              ? 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #10b981 100%)'
+              : 'linear-gradient(135deg, #0284c7 0%, #06b6d4 50%, #10b981 100%)',
             border: 'none',
-            boxShadow: '0 0 25px rgba(6, 182, 212, 0.6), 0 0 35px rgba(16, 185, 129, 0.4)'
+            boxShadow: '0 0 25px rgba(6, 182, 212, 0.6), 0 0 35px rgba(16, 185, 129, 0.4)',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease'
           }}
         >
-          <Rocket size={17} style={{ color: '#ffffff' }} />
-          <span>LAUNCH ROCKET & ENTER PORTFOLIO</span>
-          <ArrowRight size={16} />
+          {isSpeaking ? (
+            <>
+              <Sparkles size={17} style={{ color: '#ffffff' }} />
+              <span>AI VOICE ACTIVE // INITIALIZING SYSTEMS...</span>
+            </>
+          ) : (
+            <>
+              <Rocket size={17} style={{ color: '#ffffff' }} />
+              <span>INITIALIZE AI ASSISTANT & ENTER PORTFOLIO</span>
+              <ArrowRight size={16} />
+            </>
+          )}
         </button>
       </div>
 
