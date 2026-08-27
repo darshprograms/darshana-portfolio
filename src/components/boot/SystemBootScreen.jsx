@@ -85,10 +85,11 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis exactly like replay boot in background
+  // Trigger speech synthesis automatically on load
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
+    if (window._hasAutoSpoken) return;
 
     try {
       if (window.speechSynthesis.paused) {
@@ -103,6 +104,7 @@ const SystemBootScreen = ({ onComplete }) => {
       utterance.lang = 'en-US';
 
       utterance.onstart = () => {
+        window._hasAutoSpoken = true;
         setIsSpeaking(true);
       };
       utterance.onend = () => {
@@ -120,7 +122,7 @@ const SystemBootScreen = ({ onComplete }) => {
         }
         window.speechSynthesis.speak(utterance);
         setIsSpeaking(true);
-      }, 30);
+      }, 20);
     } catch (e) {
       setIsSpeaking(false);
     }
@@ -138,12 +140,11 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   useEffect(() => {
+    window._hasAutoSpoken = false;
     playChime();
-
-    // 1. Initial trigger on landing/refresh
     triggerVoiceWelcome();
 
-    // 2. Background Replay Boot automatic re-trigger when voices load
+    // 1. Voice arrival handler (asynchronous cold loads)
     if ('speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.onvoiceschanged = null;
@@ -151,10 +152,27 @@ const SystemBootScreen = ({ onComplete }) => {
       };
     }
 
-    // 3. Background Replay Boot auto-pulse if speech hasn't begun
-    const replayPulseTimer = setTimeout(() => {
-      triggerVoiceWelcome();
-    }, 150);
+    // 2. Continuous speech engine kickstart
+    const kickstart = setInterval(() => {
+      if (!('speechSynthesis' in window) || window._hasAutoSpoken) {
+        clearInterval(kickstart);
+        return;
+      }
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    }, 40);
+
+    // 3. Ambient environmental audio wakeups (cursor motion, hover, focus, touch)
+    const handleAmbientWake = () => {
+      if (!window._hasAutoSpoken) {
+        playChime();
+        triggerVoiceWelcome();
+      }
+    };
+
+    const ambientEvents = ['pointermove', 'mousemove', 'touchstart', 'touchmove', 'focus', 'wheel', 'scroll', 'pointerdown'];
+    ambientEvents.forEach(evt => window.addEventListener(evt, handleAmbientWake, { passive: true, once: true }));
 
     // Typewriter effect
     let charIdx = 0;
@@ -173,9 +191,10 @@ const SystemBootScreen = ({ onComplete }) => {
     }, 4500);
 
     return () => {
-      clearTimeout(replayPulseTimer);
+      clearInterval(kickstart);
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
+      ambientEvents.forEach(evt => window.removeEventListener(evt, handleAmbientWake));
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
