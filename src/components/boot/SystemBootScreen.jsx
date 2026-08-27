@@ -85,7 +85,7 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis
+  // Trigger speech synthesis using system default voice
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if ('speechSynthesis' in window) {
@@ -95,15 +95,8 @@ const SystemBootScreen = ({ onComplete }) => {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
-      utterance.pitch = 1.1;
-
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
-        if (naturalVoice) {
-          utterance.voice = naturalVoice;
-        }
-      }
+      utterance.pitch = 1.0;
+      utterance.lang = 'en-US';
 
       setIsSpeaking(true);
       utterance.onend = () => {
