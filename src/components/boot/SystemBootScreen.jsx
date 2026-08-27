@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Volume2, VolumeX, ArrowRight, ShieldCheck, Zap, Bot, MessageSquare, Rocket } from 'lucide-react';
 
 const SystemBootScreen = ({ onComplete }) => {
@@ -6,6 +6,13 @@ const SystemBootScreen = ({ onComplete }) => {
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const isAudioMutedRef = useRef(false);
+  const hasSpokenRef = useRef(false);
+  const utteranceRef = useRef(null);
+
+  useEffect(() => {
+    isAudioMutedRef.current = isAudioMuted;
+  }, [isAudioMuted]);
 
   const fullSpeechText = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems...";
 
@@ -15,6 +22,9 @@ const SystemBootScreen = ({ onComplete }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
 
       // 1. Low-frequency rocket engine rumble
       const bufferSize = ctx.sampleRate * 0.9;
@@ -65,6 +75,9 @@ const SystemBootScreen = ({ onComplete }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
 
       const freqs = [523.25, 659.25, 783.99, 1046.50];
       freqs.forEach((freq, idx) => {
@@ -82,27 +95,147 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis
-  const triggerVoiceWelcome = () => {
-    if (isAudioMuted) return;
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-      utterance.rate = 1.0;
-      utterance.pitch = 1.1;
+  // Select female voice reliably across Windows, Mac, iOS, Android, and Linux
+  const selectFemaleVoice = (voices) => {
+    if (!voices || voices.length === 0) return null;
 
-      const voices = window.speechSynthesis.getVoices();
-      const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
-      if (naturalVoice) {
-        utterance.voice = naturalVoice;
-      }
+    const maleKeywords = [
+      'david', 'mark', 'george', 'ravi', 'steffan', 'guy', 'male', 'man', 'boy',
+      'alex', 'fred', 'daniel', 'richard', 'oliver', 'thomas', 'ryan', 'eric',
+      'christopher', 'james', 'john', 'paul', 'matthew', 'brian', 'sean', 'michael',
+      'arthur'
+    ];
 
-      setIsSpeaking(true);
-      utterance.onend = () => {
+    const priorityFemaleKeywords = [
+      'zira',
+      'jenny',
+      'aria',
+      'samantha',
+      'victoria',
+      'karen',
+      'hazel',
+      'susan',
+      'catherine',
+      'heera',
+      'neerja',
+      'serena',
+      'ava',
+      'allison',
+      'fiona',
+      'moira',
+      'tessa',
+      'veena',
+      'google us english',
+      'google uk english female',
+      'female'
+    ];
+
+    // Filter English voices if available
+    const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+    const candidatePool = enVoices.length > 0 ? enVoices : voices;
+
+    // 1. Search prioritized female voice names
+    for (const kw of priorityFemaleKeywords) {
+      const matched = candidatePool.find(v => {
+        const name = (v.name || '').toLowerCase();
+        const isMale = maleKeywords.some(m => name.includes(m));
+        return !isMale && name.includes(kw);
+      });
+      if (matched) return matched;
+    }
+
+    // 2. Generic female keyword search
+    const genericFemale = candidatePool.find(v => {
+      const name = (v.name || '').toLowerCase();
+      const isMale = maleKeywords.some(m => name.includes(m));
+      return !isMale && (name.includes('female') || name.includes('woman') || name.includes('natural'));
+    });
+    if (genericFemale) return genericFemale;
+
+    // 3. Fallback to any voice that is NOT explicitly male
+    const nonMale = candidatePool.find(v => {
+      const name = (v.name || '').toLowerCase();
+      return !maleKeywords.some(m => name.includes(m));
+    });
+    if (nonMale) return nonMale;
+
+    return candidatePool[0] || null;
+  };
+
+  // Trigger speech synthesis with female voice guarantee & browser fix
+  const triggerVoiceWelcome = (force = false) => {
+    if (isAudioMutedRef.current && !force) return;
+    if (!('speechSynthesis' in window)) return;
+    if (hasSpokenRef.current && !force) return;
+
+    const speakNow = () => {
+      if (isAudioMutedRef.current && !force) return;
+      if (hasSpokenRef.current && !force) return;
+      hasSpokenRef.current = true;
+
+      try {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+
+        const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+        utterance.rate = 1.0;
+        utterance.pitch = 1.15; // Set clear, pleasant female assistant tone
+        utterance.volume = 1.0;
+        utterance.lang = 'en-US';
+
+        const availableVoices = window.speechSynthesis.getVoices();
+        const femaleVoice = selectFemaleVoice(availableVoices);
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+        }
+
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+        };
+        utterance.onend = () => {
+          setIsSpeaking(false);
+        };
+        utterance.onerror = (err) => {
+          setIsSpeaking(false);
+        };
+
+        // Retain utterance reference in window & ref to prevent Chromium garbage collection
+        utteranceRef.current = utterance;
+        window._activeUtterance = utterance;
+
+        // Chromium delay after cancel() to ensure speak() is not dropped
+        setTimeout(() => {
+          if (!isAudioMutedRef.current || force) {
+            window.speechSynthesis.resume();
+            window.speechSynthesis.speak(utterance);
+            setIsSpeaking(true);
+          }
+        }, 50);
+      } catch (err) {
         setIsSpeaking(false);
-      };
+      }
+    };
 
-      window.speechSynthesis.speak(utterance);
+    const initialVoices = window.speechSynthesis.getVoices();
+    if (initialVoices && initialVoices.length > 0) {
+      speakNow();
+    } else {
+      // Chrome/Chromium asynchronous voice population on initial page load
+      const handleVoicesChanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        speakNow();
+      };
+      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+
+      // Fallback timer if onvoiceschanged doesn't trigger
+      setTimeout(() => {
+        if (!hasSpokenRef.current || force) {
+          window.speechSynthesis.onvoiceschanged = null;
+          speakNow();
+        }
+      }, 250);
     }
   };
 
@@ -120,6 +253,17 @@ const SystemBootScreen = ({ onComplete }) => {
   useEffect(() => {
     playChime();
     triggerVoiceWelcome();
+
+    // Unlock on first user gesture if browser autoplay blocked audio
+    const handleFirstGesture = () => {
+      if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+        triggerVoiceWelcome();
+      }
+    };
+
+    window.addEventListener('click', handleFirstGesture, { passive: true, once: true });
+    window.addEventListener('keydown', handleFirstGesture, { passive: true, once: true });
+    window.addEventListener('touchstart', handleFirstGesture, { passive: true, once: true });
 
     // Typewriter effect
     let charIdx = 0;
@@ -140,6 +284,13 @@ const SystemBootScreen = ({ onComplete }) => {
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
+      window.removeEventListener('click', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
+      window.removeEventListener('touchstart', handleFirstGesture);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.onvoiceschanged = null;
+      }
     };
   }, []);
 
@@ -150,12 +301,13 @@ const SystemBootScreen = ({ onComplete }) => {
         inset: 0,
         zIndex: 9999,
         background: '#070a13',
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '1.5rem',
+        padding: '1rem',
         opacity: isLaunching ? 0.95 : 1,
         transition: 'all 0.3s ease',
         backgroundImage: `
@@ -188,42 +340,58 @@ const SystemBootScreen = ({ onComplete }) => {
         </div>
       )}
 
-      {/* Top Bar Controls (Sound & Skip) */}
-      <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'center', zIndex: 60 }}>
-        <button
-          onClick={() => {
-            const nextMuted = !isAudioMuted;
-            setIsAudioMuted(nextMuted);
-            if (nextMuted && 'speechSynthesis' in window) {
-              window.speechSynthesis.cancel();
-            }
-          }}
-          className="eng-btn-ghost"
-          style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-secondary)' }}
-        >
-          {isAudioMuted ? <VolumeX size={14} /> : <Volume2 size={14} style={{ color: 'var(--accent-cyan)' }} />}
-          <span>{isAudioMuted ? 'AUDIO: OFF' : 'AUDIO: ON'}</span>
-        </button>
+      {/* Unified Responsive Top Navigation Bar */}
+      <header className="boot-navbar">
+        {/* Header Identity Badge */}
+        <div className="boot-brand-badge">
+          <div className="status-dot status-dot-cyan" />
+          <span className="boot-brand-title">
+            <span className="boot-brand-name">DARSHANA_AKADKAR</span>
+            <span className="boot-brand-sep"> // </span>
+            <span className="boot-brand-sub">AI_ASSISTANT_ONLINE</span>
+          </span>
+        </div>
 
-        <button
-          onClick={triggerRocketLaunch}
-          className="eng-btn-ghost"
-          style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--accent-cyan-light)' }}
-        >
-          LAUNCH →
-        </button>
-      </div>
+        {/* Top Bar Controls (Sound & Launch) */}
+        <div className="boot-nav-actions">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const nextMuted = !isAudioMuted;
+              setIsAudioMuted(nextMuted);
+              isAudioMutedRef.current = nextMuted;
+              if (nextMuted) {
+                if ('speechSynthesis' in window) {
+                  window.speechSynthesis.cancel();
+                }
+                setIsSpeaking(false);
+              } else {
+                triggerVoiceWelcome(true);
+              }
+            }}
+            className="eng-btn-ghost boot-ctrl-btn"
+            title={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
+            aria-label={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
+          >
+            {isAudioMuted ? <VolumeX size={14} /> : <Volume2 size={14} style={{ color: 'var(--accent-cyan)' }} />}
+            <span className="boot-btn-text-full">{isAudioMuted ? 'AUDIO: OFF' : 'AUDIO: ON'}</span>
+            <span className="boot-btn-text-short">{isAudioMuted ? 'OFF' : 'ON'}</span>
+          </button>
 
-      {/* Header Identity Badge */}
-      <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem', zIndex: 60 }}>
-        <div className="status-dot status-dot-cyan" />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--accent-cyan-light)', fontWeight: 600 }}>
-          DARSHANA_AKADKAR // AI_ASSISTANT_ONLINE
-        </span>
-      </div>
+          <button
+            onClick={triggerRocketLaunch}
+            className="eng-btn-ghost boot-ctrl-btn boot-launch-btn"
+            title="Launch and enter portfolio"
+          >
+            <span className="boot-btn-text-full">LAUNCH →</span>
+            <span className="boot-btn-text-short">LAUNCH →</span>
+          </button>
+        </div>
+      </header>
 
       {/* Center 3D Floating AI Companion Robot */}
       <div 
+        className="boot-center-stage"
         style={{
           position: 'relative',
           zIndex: 50,
@@ -231,12 +399,15 @@ const SystemBootScreen = ({ onComplete }) => {
           flexDirection: 'column',
           alignItems: 'center',
           maxWidth: '680px',
-          width: '100%',
-          padding: '1.5rem'
+          width: '100%'
         }}
       >
         {/* 3D Robot & Pedestal Container */}
-        <div style={{ position: 'relative', width: '240px', height: '230px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
+        <div 
+          onClick={() => triggerVoiceWelcome(true)}
+          title="Click to replay AI voice"
+          style={{ position: 'relative', width: '240px', height: '230px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem', cursor: 'pointer' }}
+        >
           
           {/* Glowing Hexagonal Neon Pedestal */}
           <div 
@@ -409,6 +580,8 @@ const SystemBootScreen = ({ onComplete }) => {
 
         {/* Live Speech Bubble */}
         <div 
+          onClick={() => triggerVoiceWelcome(true)}
+          title="Click to replay AI voice"
           className="eng-card"
           style={{ 
             width: '100%',
@@ -420,7 +593,8 @@ const SystemBootScreen = ({ onComplete }) => {
             marginBottom: '1.5rem',
             opacity: isLaunching ? 0.3 : 1,
             transform: isLaunching ? 'translateY(20px)' : 'translateY(0)',
-            transition: 'all 0.3s ease'
+            transition: 'all 0.3s ease',
+            cursor: 'pointer'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
@@ -476,6 +650,138 @@ const SystemBootScreen = ({ onComplete }) => {
       </div>
 
       <style>{`
+        .boot-navbar {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1.25rem 1.5rem;
+          gap: 0.75rem;
+          z-index: 60;
+          box-sizing: border-box;
+          width: 100%;
+        }
+
+        .boot-brand-badge {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          min-width: 0;
+          flex-shrink: 1;
+        }
+
+        .boot-brand-title {
+          font-family: var(--font-mono);
+          font-size: 0.78rem;
+          color: var(--accent-cyan-light);
+          font-weight: 600;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .boot-nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-shrink: 0;
+        }
+
+        .boot-ctrl-btn {
+          padding: 0.38rem 0.68rem;
+          font-size: 0.74rem;
+          font-family: var(--font-mono);
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          border: 1px solid var(--border-subtle);
+          border-radius: 4px;
+          color: var(--text-secondary);
+          background: rgba(18, 24, 38, 0.75);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          white-space: nowrap;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .boot-ctrl-btn:hover {
+          color: var(--text-primary);
+          border-color: var(--accent-cyan);
+          background: rgba(6, 182, 212, 0.12);
+        }
+
+        .boot-launch-btn {
+          color: var(--accent-cyan-light);
+          border-color: rgba(6, 182, 212, 0.4);
+        }
+
+        .boot-launch-btn:hover {
+          border-color: var(--accent-cyan);
+          background: var(--accent-cyan-glow);
+          box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+        }
+
+        .boot-btn-text-full {
+          display: inline;
+        }
+
+        .boot-btn-text-short {
+          display: none;
+        }
+
+        .boot-center-stage {
+          margin-top: 4.5rem;
+          padding: 0.5rem;
+        }
+
+        @media (max-width: 640px) {
+          .boot-navbar {
+            padding: 0.85rem 1rem;
+            gap: 0.5rem;
+          }
+          .boot-brand-sub {
+            display: none;
+          }
+          .boot-brand-sep {
+            display: none;
+          }
+          .boot-brand-title {
+            font-size: 0.72rem;
+          }
+          .boot-ctrl-btn {
+            padding: 0.32rem 0.55rem;
+            font-size: 0.72rem;
+          }
+          .boot-center-stage {
+            margin-top: 3.5rem;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .boot-navbar {
+            padding: 0.75rem 0.65rem;
+            gap: 0.35rem;
+          }
+          .boot-brand-name {
+            display: none;
+          }
+          .boot-btn-text-full {
+            display: none;
+          }
+          .boot-btn-text-short {
+            display: inline;
+          }
+          .boot-ctrl-btn {
+            padding: 0.3rem 0.45rem;
+            font-size: 0.7rem;
+            gap: 0.25rem;
+          }
+        }
+
         @keyframes robotFloat {
           0% { transform: translateY(0px) rotate(0deg); }
           50% { transform: translateY(-16px) rotate(1.5deg); }

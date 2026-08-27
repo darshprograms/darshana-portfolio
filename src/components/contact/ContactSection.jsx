@@ -5,11 +5,11 @@ const ContactSection = () => {
   return (
     <section id="contact" className="section-padding" style={{ background: 'linear-gradient(180deg, #0a0e17 0%, #0e1526 100%)', borderTop: '1px solid var(--border-subtle)' }}>
       <div className="container">
-        <div 
-          className="eng-card eng-corner-accents" 
-          style={{ 
-            padding: '2.5rem', 
-            background: 'var(--bg-secondary)', 
+        <div
+          className="eng-card eng-corner-accents"
+          style={{
+            padding: '2.5rem',
+            background: 'var(--bg-secondary)',
             border: '1px solid var(--border-default)',
             maxWidth: '960px',
             margin: '0 auto'
@@ -116,35 +116,6 @@ const ContactSection = () => {
                 </div>
               </div>
               <ArrowUpRight size={15} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
-            </a>
-          </div>
-
-          {/* Action CTAs */}
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a
-              href="mailto:darshana.akadkar@gmail.com"
-              className="eng-btn eng-btn-primary"
-            >
-              <Mail size={15} />
-              <span>EMAIL ME</span>
-            </a>
-            <a
-              href="https://linkedin.com/in/darshana-akadkar"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="eng-btn eng-btn-secondary"
-            >
-              <Linkedin size={15} />
-              <span>LINKEDIN</span>
-            </a>
-            <a
-              href="https://github.com/darshprograms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="eng-btn eng-btn-secondary"
-            >
-              <Github size={15} />
-              <span>GITHUB</span>
             </a>
           </div>
         </div>

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Terminal, ShieldCheck, Activity, Github, Linkedin, Mail } from 'lucide-react';
 
 const Footer = ({ onOpenAskAI, onReplayBoot }) => {
   return (
@@ -38,34 +37,6 @@ const Footer = ({ onOpenAskAI, onReplayBoot }) => {
           >
             <span>ASK PORTFOLIO AI</span>
           </button>
-        </div>
-
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <a
-            href="https://github.com/darshprograms"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'var(--text-secondary)', transition: 'color 0.15s' }}
-            aria-label="GitHub"
-          >
-            <Github size={16} />
-          </a>
-          <a
-            href="https://linkedin.com/in/darshana-akadkar"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'var(--text-secondary)', transition: 'color 0.15s' }}
-            aria-label="LinkedIn"
-          >
-            <Linkedin size={16} />
-          </a>
-          <a
-            href="mailto:darshana.akadkar@gmail.com"
-            style={{ color: 'var(--text-secondary)', transition: 'color 0.15s' }}
-            aria-label="Email"
-          >
-            <Mail size={16} />
-          </a>
         </div>
       </div>
     </footer>
