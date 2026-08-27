@@ -153,7 +153,15 @@ const SystemBootScreen = ({ onComplete }) => {
     setIsLaunching(true);
     playRocketLaunchSound();
 
+    // Immediately stop voice the moment rocket launch begins
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     setTimeout(() => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
       onComplete();
     }, 950);
   };
@@ -205,6 +213,7 @@ const SystemBootScreen = ({ onComplete }) => {
       window.removeEventListener('click', handleTouchWake);
       window.removeEventListener('keydown', handleTouchWake);
       if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
       }
     };
