@@ -85,7 +85,7 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis using system default voice
+  // Trigger speech synthesis exactly like replay boot in background
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
@@ -94,6 +94,8 @@ const SystemBootScreen = ({ onComplete }) => {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
+
+      window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
@@ -112,25 +114,13 @@ const SystemBootScreen = ({ onComplete }) => {
 
       window._activeUtterance = utterance;
 
-      window.speechSynthesis.resume();
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-
-      // Active kickstart loop: forces Chromium to start playing queued speech automatically
-      const autoKick = setInterval(() => {
-        if (!('speechSynthesis' in window)) {
-          clearInterval(autoKick);
-          return;
-        }
+      setTimeout(() => {
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
-        if (window.speechSynthesis.speaking) {
-          clearInterval(autoKick);
-        }
-      }, 50);
-
-      setTimeout(() => clearInterval(autoKick), 2000);
+        window.speechSynthesis.speak(utterance);
+        setIsSpeaking(true);
+      }, 30);
     } catch (e) {
       setIsSpeaking(false);
     }
@@ -150,10 +140,21 @@ const SystemBootScreen = ({ onComplete }) => {
   useEffect(() => {
     playChime();
 
-    // 80ms buffer allows browser paint to complete before starting speech synthesis
-    const initialSpeechTimer = setTimeout(() => {
+    // 1. Initial trigger on landing/refresh
+    triggerVoiceWelcome();
+
+    // 2. Background Replay Boot automatic re-trigger when voices load
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        triggerVoiceWelcome();
+      };
+    }
+
+    // 3. Background Replay Boot auto-pulse if speech hasn't begun
+    const replayPulseTimer = setTimeout(() => {
       triggerVoiceWelcome();
-    }, 80);
+    }, 150);
 
     // Typewriter effect
     let charIdx = 0;
@@ -172,11 +173,12 @@ const SystemBootScreen = ({ onComplete }) => {
     }, 4500);
 
     return () => {
-      clearTimeout(initialSpeechTimer);
+      clearTimeout(replayPulseTimer);
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
+        window.speechSynthesis.onvoiceschanged = null;
       }
     };
   }, []);
