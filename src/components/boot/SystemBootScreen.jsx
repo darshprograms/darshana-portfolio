@@ -12,22 +12,40 @@ const SystemBootScreen = ({ onComplete }) => {
 
   const utteranceRef = useRef(null);
   const isSpeakingRef = useRef(false);
-  const hasStartedRef = useRef(false);
+  const hasSpokenRef = useRef(false);
   const launchTimerRef = useRef(null);
   const fallbackTimerRef = useRef(null);
   const resumeIntervalRef = useRef(null);
   const isAudioMutedRef = useRef(isAudioMuted);
+  const audioCtxRef = useRef(null);
+  const retryTimersRef = useRef([]);
 
   useEffect(() => {
     isAudioMutedRef.current = isAudioMuted;
   }, [isAudioMuted]);
 
+  // Audio Context Manager with instant unlock
+  const getAudioContext = () => {
+    try {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtxClass) return null;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioCtxClass();
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+      return audioCtxRef.current;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Web Audio Rocket Thrust & Supersonic Launch Sound
   const playRocketLaunchSound = () => {
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      const ctx = getAudioContext();
+      if (!ctx) return;
 
       // 1. Low-frequency rocket engine rumble
       const bufferSize = ctx.sampleRate * 0.9;
@@ -75,9 +93,8 @@ const SystemBootScreen = ({ onComplete }) => {
   // High-tech chord chime for system reveal
   const playChime = () => {
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      const ctx = getAudioContext();
+      if (!ctx) return;
 
       const freqs = [523.25, 659.25, 783.99, 1046.50];
       freqs.forEach((freq, idx) => {
@@ -102,7 +119,8 @@ const SystemBootScreen = ({ onComplete }) => {
     const maleKeywords = [
       'david', 'mark', 'george', 'alex', 'fred', 'daniel', 'richard',
       'oliver', 'thomas', 'ryan', 'eric', 'christopher', 'james', 'john',
-      'paul', 'matthew', 'brian', 'sean', 'michael', 'guy', 'male'
+      'paul', 'matthew', 'brian', 'sean', 'michael', 'guy', 'male',
+      'natural', 'google'
     ];
 
     const enVoices = voices.filter(v => (v.lang || '').toLowerCase().startsWith('en'));
@@ -117,13 +135,15 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   // Rocket Launch Ignition & Transition
-  const triggerRocketLaunch = () => {
+  const triggerRocketLaunch = (e) => {
+    if (e) e.stopPropagation();
     if (isLaunching) return;
     setIsLaunching(true);
 
     if (launchTimerRef.current) clearTimeout(launchTimerRef.current);
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
+    retryTimersRef.current.forEach(t => clearTimeout(t));
 
     playRocketLaunchSound();
 
@@ -144,7 +164,7 @@ const SystemBootScreen = ({ onComplete }) => {
   const triggerVoiceWelcome = () => {
     if (isAudioMutedRef.current) return;
     if (!('speechSynthesis' in window)) return;
-    if (hasStartedRef.current && isSpeakingRef.current) return; // Don't interrupt if already speaking
+    if (isSpeakingRef.current || hasSpokenRef.current) return;
 
     try {
       window.speechSynthesis.cancel();
@@ -156,7 +176,7 @@ const SystemBootScreen = ({ onComplete }) => {
       utterance.rate = 0.98;
       utterance.pitch = 0.95;
       utterance.volume = 1.0;
-      utterance.lang = navigator.language || 'en-US';
+      utterance.lang = 'en-US';
 
       const voices = window.speechSynthesis.getVoices();
       if (voices && voices.length > 0) {
@@ -169,7 +189,10 @@ const SystemBootScreen = ({ onComplete }) => {
       utterance.onstart = () => {
         setIsSpeaking(true);
         isSpeakingRef.current = true;
-        hasStartedRef.current = true;
+        hasSpokenRef.current = true;
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+        }
       };
 
       utterance.onend = () => {
@@ -192,16 +215,24 @@ const SystemBootScreen = ({ onComplete }) => {
 
       window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-      isSpeakingRef.current = true;
-      hasStartedRef.current = true;
     } catch (e) {
       setIsSpeaking(false);
       isSpeakingRef.current = false;
     }
   };
 
-  const handleToggleAudio = () => {
+  const triggerAllAudio = () => {
+    if (isAudioMutedRef.current) return;
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    playChime();
+    triggerVoiceWelcome();
+  };
+
+  const handleToggleAudio = (e) => {
+    if (e) e.stopPropagation();
     const nextMuted = !isAudioMuted;
     setIsAudioMuted(nextMuted);
     isAudioMutedRef.current = nextMuted;
@@ -212,12 +243,12 @@ const SystemBootScreen = ({ onComplete }) => {
       setIsSpeaking(false);
       isSpeakingRef.current = false;
     } else {
-      hasStartedRef.current = false;
-      triggerVoiceWelcome();
+      hasSpokenRef.current = false;
+      triggerAllAudio();
     }
   };
 
-  // Keep-alive mechanism to prevent browser from pausing long speech synthesis
+  // Keep-alive mechanism to prevent browser from pausing speech synthesis
   useEffect(() => {
     resumeIntervalRef.current = setInterval(() => {
       if ('speechSynthesis' in window) {
@@ -233,31 +264,44 @@ const SystemBootScreen = ({ onComplete }) => {
   }, []);
 
   useEffect(() => {
-    playChime();
-    triggerVoiceWelcome();
+    // 1. Immediate trigger on component mount
+    triggerAllAudio();
 
-    // Auto-trigger when mobile/browser voices finish loading
+    // 2. Auto-trigger as soon as browser voices finish asynchronous loading
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        if (!hasStartedRef.current) {
+      const handleVoicesChanged = () => {
+        if (!hasSpokenRef.current && !isAudioMutedRef.current) {
           triggerVoiceWelcome();
         }
       };
+      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
     }
 
-    // Mobile touch and pointer wake listeners for autoplay policy compliance
-    const handleTouchWake = () => {
-      if (!hasStartedRef.current && !isAudioMutedRef.current) {
-        playChime();
-        triggerVoiceWelcome();
+    // 3. Staggered retry sequence in case audio was queued / waiting for voice cache
+    const retryDelays = [80, 250, 600, 1200, 2000];
+    retryDelays.forEach(delay => {
+      const t = setTimeout(() => {
+        if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+          triggerAllAudio();
+        }
+      }, delay);
+      retryTimersRef.current.push(t);
+    });
+
+    // 4. Global instant wake listeners for all user gestures (mousemove, scroll, touch, key, click)
+    const handleWake = () => {
+      if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+        triggerAllAudio();
       }
     };
 
-    window.addEventListener('touchstart', handleTouchWake, { passive: true, once: true });
-    window.addEventListener('pointerdown', handleTouchWake, { passive: true, once: true });
-    window.addEventListener('click', handleTouchWake, { passive: true, once: true });
-    window.addEventListener('keydown', handleTouchWake, { once: true });
+    const wakeEvents = [
+      'pointerdown', 'touchstart', 'touchend', 'mousedown',
+      'click', 'keydown', 'mousemove', 'pointermove', 'scroll', 'wheel', 'focus'
+    ];
+    wakeEvents.forEach(evt => {
+      window.addEventListener(evt, handleWake, { passive: true });
+    });
 
     // Typewriter effect matching speech
     let charIdx = 0;
@@ -273,17 +317,17 @@ const SystemBootScreen = ({ onComplete }) => {
     // Fallback auto launch timer in case speech is disabled, unsupported, or blocked
     fallbackTimerRef.current = setTimeout(() => {
       triggerRocketLaunch();
-    }, 6800);
+    }, 7500);
 
     return () => {
       clearInterval(typeInterval);
       if (launchTimerRef.current) clearTimeout(launchTimerRef.current);
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
       if (resumeIntervalRef.current) clearInterval(resumeIntervalRef.current);
-      window.removeEventListener('touchstart', handleTouchWake);
-      window.removeEventListener('pointerdown', handleTouchWake);
-      window.removeEventListener('click', handleTouchWake);
-      window.removeEventListener('keydown', handleTouchWake);
+      retryTimersRef.current.forEach(t => clearTimeout(t));
+      wakeEvents.forEach(evt => {
+        window.removeEventListener(evt, handleWake);
+      });
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
@@ -293,6 +337,16 @@ const SystemBootScreen = ({ onComplete }) => {
 
   return (
     <div
+      onClick={() => {
+        if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+          triggerAllAudio();
+        }
+      }}
+      onPointerDown={() => {
+        if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+          triggerAllAudio();
+        }
+      }}
       style={{
         position: 'fixed',
         inset: 0,
