@@ -89,14 +89,11 @@ const SystemBootScreen = ({ onComplete }) => {
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
-    if (window._hasAutoSpoken) return;
 
     try {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
-
-      window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
@@ -104,7 +101,6 @@ const SystemBootScreen = ({ onComplete }) => {
       utterance.lang = 'en-US';
 
       utterance.onstart = () => {
-        window._hasAutoSpoken = true;
         setIsSpeaking(true);
       };
       utterance.onend = () => {
@@ -116,13 +112,9 @@ const SystemBootScreen = ({ onComplete }) => {
 
       window._activeUtterance = utterance;
 
-      setTimeout(() => {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-        window.speechSynthesis.speak(utterance);
-        setIsSpeaking(true);
-      }, 20);
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
     } catch (e) {
       setIsSpeaking(false);
     }
