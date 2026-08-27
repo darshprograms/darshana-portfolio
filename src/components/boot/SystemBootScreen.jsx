@@ -8,7 +8,7 @@ const SystemBootScreen = ({ onComplete }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const fullSpeechText = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems...";
-  const speechSentence = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems.";
+  const speechSentence = "Welcome to Darshana Akadkar's Developer Control Panel.";
 
   const utteranceRef = useRef(null);
   const isSpeakingRef = useRef(false);
@@ -33,7 +33,7 @@ const SystemBootScreen = ({ onComplete }) => {
         audioCtxRef.current = new AudioCtxClass();
       }
       if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume().catch(() => {});
+        audioCtxRef.current.resume().catch(() => { });
       }
       return audioCtxRef.current;
     } catch (e) {
@@ -225,7 +225,7 @@ const SystemBootScreen = ({ onComplete }) => {
     if (isAudioMutedRef.current) return;
     const ctx = getAudioContext();
     if (ctx && ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
+      ctx.resume().catch(() => { });
     }
     playChime();
     triggerVoiceWelcome();
