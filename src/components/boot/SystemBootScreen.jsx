@@ -82,54 +82,28 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis with guaranteed female voice on both first load and replay
+  // Trigger speech synthesis
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
-    if (!('speechSynthesis' in window)) return;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+      utterance.rate = 1.0;
+      utterance.pitch = 1.1;
 
-    const voices = window.speechSynthesis.getVoices();
+      const voices = window.speechSynthesis.getVoices();
+      const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
+      if (naturalVoice) {
+        utterance.voice = naturalVoice;
+      }
 
-    // If voices are not ready yet on cold start, wait for onvoiceschanged
-    if (!voices || voices.length === 0) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.onvoiceschanged = null;
-        triggerVoiceWelcome();
+      setIsSpeaking(true);
+      utterance.onend = () => {
+        setIsSpeaking(false);
       };
-      return;
+
+      window.speechSynthesis.speak(utterance);
     }
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-    utterance.rate = 1.0;
-    utterance.pitch = 1.15;
-    utterance.lang = 'en-US';
-
-    const femaleVoice = voices.find(v =>
-      (v.name.includes('Zira') ||
-       v.name.includes('Samantha') ||
-       v.name.includes('Victoria') ||
-       v.name.includes('Karen') ||
-       v.name.includes('Jenny') ||
-       v.name.includes('Aria') ||
-       v.name.includes('Natural') ||
-       v.name.includes('Google') ||
-       v.name.includes('Female')) &&
-      (v.lang || '').startsWith('en')
-    );
-
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
-    }
-
-    setIsSpeaking(true);
-    utterance.onend = () => {
-      setIsSpeaking(false);
-    };
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-    };
-
-    window.speechSynthesis.speak(utterance);
   };
 
   // Rocket Launch Ignition & Transition
@@ -161,15 +135,11 @@ const SystemBootScreen = ({ onComplete }) => {
     // Auto trigger rocket launch after speaking
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4500);
+    }, 4200);
 
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.onvoiceschanged = null;
-      }
     };
   }, []);
 
