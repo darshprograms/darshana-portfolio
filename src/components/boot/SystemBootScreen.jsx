@@ -185,7 +185,6 @@ const SystemBootScreen = ({ onComplete }) => {
     const speakCore = () => {
       if (isAudioMutedRef.current && !force) return;
       if (hasSpokenRef.current && !force) return;
-      hasSpokenRef.current = true;
 
       try {
         if (window.speechSynthesis.paused) {
@@ -231,7 +230,6 @@ const SystemBootScreen = ({ onComplete }) => {
           window.speechSynthesis.cancel();
           window.speechSynthesis.resume();
           window.speechSynthesis.speak(utterance);
-          setIsSpeaking(true);
         } else {
           // Desktop Chromium: brief delay avoids queue cancel conflict
           window.speechSynthesis.cancel();
@@ -239,7 +237,6 @@ const SystemBootScreen = ({ onComplete }) => {
             if (!isAudioMutedRef.current) {
               window.speechSynthesis.resume();
               window.speechSynthesis.speak(utterance);
-              setIsSpeaking(true);
             }
           }, 40);
         }
@@ -269,18 +266,16 @@ const SystemBootScreen = ({ onComplete }) => {
     }
   };
 
+  const handleFirstGesture = () => {
+    if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+      playChime();
+      triggerVoiceWelcome(true, true);
+    }
+  };
+
   useEffect(() => {
     playChime();
     triggerVoiceWelcome(false, false);
-
-    // If audio is blocked by mobile autoplay on cold load, unlock once on first gesture
-    const handleFirstGesture = () => {
-      if (!hasSpokenRef.current && !isAudioMutedRef.current) {
-        hasSpokenRef.current = true;
-        playChime();
-        triggerVoiceWelcome(false, true);
-      }
-    };
 
     window.addEventListener('click', handleFirstGesture, { passive: true, once: true });
     window.addEventListener('touchstart', handleFirstGesture, { passive: true, once: true });
@@ -299,7 +294,7 @@ const SystemBootScreen = ({ onComplete }) => {
     // Safety fallback auto launch in case speech is muted or unsupported
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4200);
+    }, 4500);
 
     return () => {
       clearInterval(typeInterval);
@@ -315,6 +310,8 @@ const SystemBootScreen = ({ onComplete }) => {
 
   return (
     <div 
+      onClick={handleFirstGesture}
+      onTouchStart={handleFirstGesture}
       style={{
         position: 'fixed',
         inset: 0,
