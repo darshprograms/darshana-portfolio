@@ -88,7 +88,9 @@ const SystemBootScreen = ({ onComplete }) => {
   // Trigger speech synthesis using system default voice
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
-    if ('speechSynthesis' in window) {
+    if (!('speechSynthesis' in window)) return;
+
+    try {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
@@ -109,9 +111,28 @@ const SystemBootScreen = ({ onComplete }) => {
       };
 
       window._activeUtterance = utterance;
+
       window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
       setIsSpeaking(true);
+
+      // Active kickstart loop: forces Chromium to start playing queued speech automatically
+      const autoKick = setInterval(() => {
+        if (!('speechSynthesis' in window)) {
+          clearInterval(autoKick);
+          return;
+        }
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+        if (window.speechSynthesis.speaking) {
+          clearInterval(autoKick);
+        }
+      }, 50);
+
+      setTimeout(() => clearInterval(autoKick), 2000);
+    } catch (e) {
+      setIsSpeaking(false);
     }
   };
 
@@ -128,15 +149,11 @@ const SystemBootScreen = ({ onComplete }) => {
 
   useEffect(() => {
     playChime();
-    triggerVoiceWelcome();
 
-    const handleFirstInteraction = () => {
-      playChime();
+    // 80ms buffer allows browser paint to complete before starting speech synthesis
+    const initialSpeechTimer = setTimeout(() => {
       triggerVoiceWelcome();
-    };
-
-    window.addEventListener('pointerdown', handleFirstInteraction, { once: true });
-    window.addEventListener('keydown', handleFirstInteraction, { once: true });
+    }, 80);
 
     // Typewriter effect
     let charIdx = 0;
@@ -155,10 +172,9 @@ const SystemBootScreen = ({ onComplete }) => {
     }, 4500);
 
     return () => {
+      clearTimeout(initialSpeechTimer);
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
-      window.removeEventListener('pointerdown', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
