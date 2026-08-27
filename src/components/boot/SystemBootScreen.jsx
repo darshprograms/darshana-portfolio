@@ -82,27 +82,63 @@ const SystemBootScreen = ({ onComplete }) => {
     } catch (e) {}
   };
 
-  // Trigger speech synthesis
+  // Select strictly male voice across Windows, Mac, iOS, and Android
+  const selectMaleVoice = (voices) => {
+    if (!voices || !Array.isArray(voices) || voices.length === 0) return null;
+
+    const maleKeywords = [
+      'david', 'mark', 'george', 'alex', 'fred', 'daniel', 'richard',
+      'oliver', 'thomas', 'ryan', 'eric', 'christopher', 'james', 'john',
+      'paul', 'matthew', 'brian', 'sean', 'michael', 'guy', 'male'
+    ];
+
+    const enVoices = voices.filter(v => (v.lang || '').toLowerCase().startsWith('en'));
+    const pool = enVoices.length > 0 ? enVoices : voices;
+
+    for (const kw of maleKeywords) {
+      const match = pool.find(v => (v.name || '').toLowerCase().includes(kw));
+      if (match) return match;
+    }
+
+    return pool[0] || null;
+  };
+
+  // Trigger speech synthesis using strictly male voice
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (!('speechSynthesis' in window)) return;
+
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
-      utterance.pitch = 1.1;
+      utterance.pitch = 0.95;
+      utterance.lang = 'en-US';
 
       const voices = window.speechSynthesis.getVoices();
-      const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
-      if (naturalVoice) {
-        utterance.voice = naturalVoice;
+      if (voices && voices.length > 0) {
+        const maleVoice = selectMaleVoice(voices);
+        if (maleVoice) {
+          utterance.voice = maleVoice;
+        }
       }
 
       setIsSpeaking(true);
       utterance.onend = () => {
         setIsSpeaking(false);
       };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+      };
 
+      window._activeUtterance = utterance;
+      window.speechSynthesis.resume();
       window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      setIsSpeaking(false);
     }
   };
 
