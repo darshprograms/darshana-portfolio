@@ -121,6 +121,15 @@ const SystemBootScreen = ({ onComplete }) => {
     playChime();
     triggerVoiceWelcome();
 
+    // Tapping or clicking anywhere on the screen immediately wakes the audio engine
+    const handleScreenTap = () => {
+      playChime();
+      triggerVoiceWelcome();
+    };
+
+    window.addEventListener('pointerdown', handleScreenTap, { once: true });
+    window.addEventListener('keydown', handleScreenTap, { once: true });
+
     // Typewriter effect
     let charIdx = 0;
     const typeInterval = setInterval(() => {
@@ -140,6 +149,8 @@ const SystemBootScreen = ({ onComplete }) => {
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
+      window.removeEventListener('pointerdown', handleScreenTap);
+      window.removeEventListener('keydown', handleScreenTap);
     };
   }, []);
 
