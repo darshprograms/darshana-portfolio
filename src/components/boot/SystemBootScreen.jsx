@@ -149,45 +149,71 @@ const SystemBootScreen = ({ onComplete }) => {
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
+    if (window._hasSpokenWelcome) return;
 
-    try {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
+    const speakWithVoices = (availableVoices) => {
+      if (window._hasSpokenWelcome) return;
+      window._hasSpokenWelcome = true;
 
-      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-      utterance.rate = 1.0;
-      utterance.pitch = 1.15;
-      utterance.volume = 1.0;
-      utterance.lang = 'en-US';
+      try {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
 
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const femaleVoice = selectFemaleVoice(voices);
+        const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+        utterance.rate = 1.0;
+        utterance.pitch = 1.15;
+        utterance.volume = 1.0;
+        utterance.lang = 'en-US';
+
+        const femaleVoice = selectFemaleVoice(availableVoices);
         if (femaleVoice) {
           utterance.voice = femaleVoice;
         }
+
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+        };
+
+        utterance.onend = () => {
+          setIsSpeaking(false);
+        };
+
+        utterance.onerror = () => {
+          setIsSpeaking(false);
+        };
+
+        window._activeUtterance = utterance;
+
+        // Brief delay after cancel ensures clean queue in Chromium
+        setTimeout(() => {
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(utterance);
+          setIsSpeaking(true);
+        }, 50);
+      } catch (e) {
+        setIsSpeaking(false);
       }
+    };
 
-      utterance.onstart = () => {
-        setIsSpeaking(true);
+    const currentVoices = window.speechSynthesis.getVoices();
+    if (currentVoices && currentVoices.length > 0) {
+      speakWithVoices(currentVoices);
+    } else {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        const loadedVoices = window.speechSynthesis.getVoices();
+        speakWithVoices(loadedVoices);
       };
 
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
-
-      window._activeUtterance = utterance;
-
-      window.speechSynthesis.resume();
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-    } catch (e) {
-      setIsSpeaking(false);
+      // Fallback timer if onvoiceschanged doesn't fire
+      setTimeout(() => {
+        if (!window._hasSpokenWelcome) {
+          window.speechSynthesis.onvoiceschanged = null;
+          speakWithVoices(window.speechSynthesis.getVoices());
+        }
+      }, 150);
     }
   };
 
@@ -203,14 +229,9 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   useEffect(() => {
+    window._hasSpokenWelcome = false;
     playChime();
     triggerVoiceWelcome();
-
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        triggerVoiceWelcome();
-      };
-    }
 
     // Typewriter effect
     let charIdx = 0;
