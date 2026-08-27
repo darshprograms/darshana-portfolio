@@ -97,22 +97,22 @@ const SystemBootScreen = ({ onComplete }) => {
 
   // Select female voice reliably across Windows, Mac, iOS, Android, and Linux
   const selectFemaleVoice = (voices) => {
-    if (!voices || voices.length === 0) return null;
+    if (!voices || !Array.isArray(voices) || voices.length === 0) return null;
 
     const maleKeywords = [
       'david', 'mark', 'george', 'ravi', 'steffan', 'guy', 'male', 'man', 'boy',
       'alex', 'fred', 'daniel', 'richard', 'oliver', 'thomas', 'ryan', 'eric',
       'christopher', 'james', 'john', 'paul', 'matthew', 'brian', 'sean', 'michael',
-      'arthur'
+      'arthur', 'desktop - english (united states) david'
     ];
 
     const priorityFemaleKeywords = [
-      'zira',
-      'jenny',
-      'aria',
       'samantha',
       'victoria',
       'karen',
+      'zira',
+      'jenny',
+      'aria',
       'hazel',
       'susan',
       'catherine',
@@ -173,7 +173,6 @@ const SystemBootScreen = ({ onComplete }) => {
       if (hasSpokenRef.current && !force) return;
 
       try {
-        window.speechSynthesis.cancel();
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
@@ -207,12 +206,14 @@ const SystemBootScreen = ({ onComplete }) => {
 
         if (isDirectGesture) {
           // iOS Safari & Mobile: MUST be called synchronously inside user gesture event stack
+          window.speechSynthesis.cancel();
           window.speechSynthesis.resume();
           window.speechSynthesis.speak(utterance);
           hasSpokenRef.current = true;
           setIsSpeaking(true);
         } else {
           // Desktop Chromium: brief delay avoids queue cancel conflict
+          window.speechSynthesis.cancel();
           setTimeout(() => {
             if (!isAudioMutedRef.current || force) {
               window.speechSynthesis.resume();
@@ -244,7 +245,7 @@ const SystemBootScreen = ({ onComplete }) => {
           window.speechSynthesis.onvoiceschanged = null;
           speakCore();
         }
-      }, 250);
+      }, 180);
     }
   };
 
@@ -274,6 +275,7 @@ const SystemBootScreen = ({ onComplete }) => {
     window.addEventListener('click', handleFirstGesture, { passive: true, once: true });
     window.addEventListener('touchstart', handleFirstGesture, { passive: true, once: true });
     window.addEventListener('touchend', handleFirstGesture, { passive: true, once: true });
+    window.addEventListener('pointerdown', handleFirstGesture, { passive: true, once: true });
     window.addEventListener('keydown', handleFirstGesture, { passive: true, once: true });
 
     // Typewriter effect
@@ -290,7 +292,7 @@ const SystemBootScreen = ({ onComplete }) => {
     // Auto trigger rocket launch after speaking (generous time for mobile viewing)
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 6000);
+    }, 6500);
 
     return () => {
       clearInterval(typeInterval);
@@ -298,6 +300,7 @@ const SystemBootScreen = ({ onComplete }) => {
       window.removeEventListener('click', handleFirstGesture);
       window.removeEventListener('touchstart', handleFirstGesture);
       window.removeEventListener('touchend', handleFirstGesture);
+      window.removeEventListener('pointerdown', handleFirstGesture);
       window.removeEventListener('keydown', handleFirstGesture);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
