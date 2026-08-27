@@ -221,25 +221,22 @@ const SystemBootScreen = ({ onComplete }) => {
           }, 300);
         };
 
-        // Retain utterance reference in window & ref to prevent Chromium garbage collection
+        // Retain utterance reference in window & ref to prevent garbage collection
         utteranceRef.current = utterance;
         window._activeUtterance = utterance;
 
-        if (isDirectGesture) {
-          // iOS Safari & Mobile: MUST be called synchronously inside user gesture event stack
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.resume();
-          window.speechSynthesis.speak(utterance);
-        } else {
-          // Desktop Chromium: brief delay avoids queue cancel conflict
-          window.speechSynthesis.cancel();
-          setTimeout(() => {
-            if (!isAudioMutedRef.current) {
-              window.speechSynthesis.resume();
-              window.speechSynthesis.speak(utterance);
-            }
-          }, 40);
-        }
+        // Resume speech engine and speak immediately
+        window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utterance);
+
+        // Continuous resume heartbeat for mobile Android/iOS background speech engine
+        const resumeHeartbeat = setInterval(() => {
+          if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
+            clearInterval(resumeHeartbeat);
+          } else if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+        }, 100);
       } catch (err) {
         setIsSpeaking(false);
       }
@@ -262,7 +259,7 @@ const SystemBootScreen = ({ onComplete }) => {
           window.speechSynthesis.onvoiceschanged = null;
           speakCore();
         }
-      }, 180);
+      }, 100);
     }
   };
 
