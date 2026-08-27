@@ -177,8 +177,8 @@ const SystemBootScreen = ({ onComplete }) => {
     }, 950);
   };
 
-  // Trigger speech synthesis with female voice guarantee & mobile iOS/Android support
-  const triggerVoiceWelcome = (force = false, isDirectGesture = false) => {
+  // Trigger speech synthesis with female voice guarantee & automatic cold-start playback
+  const triggerVoiceWelcome = (force = false) => {
     if (isAudioMutedRef.current && !force) return;
     if (!('speechSynthesis' in window)) return;
     if (hasSpokenRef.current && !force) return;
@@ -211,8 +211,8 @@ const SystemBootScreen = ({ onComplete }) => {
         utterance.onend = () => {
           setIsSpeaking(false);
           const elapsed = Date.now() - mountTimeRef.current;
-          // Only trigger if voice actually played (> 2.2s) to prevent instant Android TTS dismiss
-          if (elapsed >= 2200) {
+          // Only trigger if voice actually played (> 2.0s) to prevent premature dismiss
+          if (elapsed >= 2000) {
             setTimeout(() => {
               triggerRocketLaunch();
             }, 250);
@@ -226,11 +226,11 @@ const SystemBootScreen = ({ onComplete }) => {
         utteranceRef.current = utterance;
         window._activeUtterance = utterance;
 
-        // Resume speech engine and speak
+        // Resume engine and speak immediately
         window.speechSynthesis.resume();
         window.speechSynthesis.speak(utterance);
 
-        // Continuous resume heartbeat for mobile Android/iOS background speech engine
+        // Continuous resume heartbeat for background speech engine
         const resumeHeartbeat = setInterval(() => {
           if (!('speechSynthesis' in window) || !window.speechSynthesis.speaking) {
             clearInterval(resumeHeartbeat);
@@ -257,7 +257,6 @@ const SystemBootScreen = ({ onComplete }) => {
       // Fallback timer if onvoiceschanged doesn't trigger
       setTimeout(() => {
         if (!hasSpokenRef.current) {
-          window.speechSynthesis.onvoiceschanged = null;
           speakCore();
         }
       }, 100);
@@ -267,17 +266,30 @@ const SystemBootScreen = ({ onComplete }) => {
   const handleFirstGesture = () => {
     if (!hasSpokenRef.current && !isAudioMutedRef.current) {
       playChime();
-      triggerVoiceWelcome(true, true);
+      triggerVoiceWelcome(true);
     }
   };
 
   useEffect(() => {
     mountTimeRef.current = Date.now();
     playChime();
-    triggerVoiceWelcome(false, false);
+    triggerVoiceWelcome(false);
 
-    window.addEventListener('click', handleFirstGesture, { passive: true, once: true });
-    window.addEventListener('touchstart', handleFirstGesture, { passive: true, once: true });
+    // Automatic startup retry loop: ensures speech kicks off automatically as soon as browser is ready
+    let attempts = 0;
+    const autoSpeechInterval = setInterval(() => {
+      attempts++;
+      if (hasSpokenRef.current || isAudioMutedRef.current || attempts > 8) {
+        clearInterval(autoSpeechInterval);
+      } else if ('speechSynthesis' in window) {
+        window.speechSynthesis.resume();
+        triggerVoiceWelcome(false);
+      }
+    }, 200);
+
+    window.addEventListener('click', handleFirstGesture, { passive: true });
+    window.addEventListener('touchstart', handleFirstGesture, { passive: true });
+    window.addEventListener('pointerdown', handleFirstGesture, { passive: true });
 
     // Typewriter effect synchronized with speech length
     let charIdx = 0;
@@ -297,9 +309,11 @@ const SystemBootScreen = ({ onComplete }) => {
 
     return () => {
       clearInterval(typeInterval);
+      clearInterval(autoSpeechInterval);
       clearTimeout(autoLaunchTimer);
       window.removeEventListener('click', handleFirstGesture);
       window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('pointerdown', handleFirstGesture);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
