@@ -65,6 +65,9 @@ const SystemBootScreen = ({ onComplete }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
 
       const freqs = [523.25, 659.25, 783.99, 1046.50];
       freqs.forEach((freq, idx) => {
@@ -86,19 +89,27 @@ const SystemBootScreen = ({ onComplete }) => {
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if ('speechSynthesis' in window) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
       utterance.rate = 1.0;
       utterance.pitch = 1.1;
 
       const voices = window.speechSynthesis.getVoices();
-      const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
-      if (naturalVoice) {
-        utterance.voice = naturalVoice;
+      if (voices && voices.length > 0) {
+        const naturalVoice = voices.find(v => (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Karen')) && v.lang.startsWith('en'));
+        if (naturalVoice) {
+          utterance.voice = naturalVoice;
+        }
       }
 
       setIsSpeaking(true);
       utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+      utterance.onerror = () => {
         setIsSpeaking(false);
       };
 
@@ -121,6 +132,14 @@ const SystemBootScreen = ({ onComplete }) => {
     playChime();
     triggerVoiceWelcome();
 
+    const handleFirstInteraction = () => {
+      playChime();
+      triggerVoiceWelcome();
+    };
+
+    window.addEventListener('pointerdown', handleFirstInteraction, { once: true });
+    window.addEventListener('keydown', handleFirstInteraction, { once: true });
+
     // Typewriter effect
     let charIdx = 0;
     const typeInterval = setInterval(() => {
@@ -135,11 +154,16 @@ const SystemBootScreen = ({ onComplete }) => {
     // Auto trigger rocket launch after speaking
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4200);
+    }, 4500);
 
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
