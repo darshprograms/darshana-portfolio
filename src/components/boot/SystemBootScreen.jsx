@@ -180,45 +180,45 @@ const SystemBootScreen = ({ onComplete }) => {
   // Trigger speech synthesis with guaranteed female voice
   const triggerVoiceWelcome = () => {
     if (isAudioMutedRef.current) return;
-    if ('speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
+    if (!('speechSynthesis' in window)) return;
 
-        const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
-        utterance.rate = 1.0;
-        utterance.pitch = 1.15;
-        utterance.volume = 1.0;
-        utterance.lang = 'en-US';
-
-        const voices = window.speechSynthesis.getVoices();
-        const femaleVoice = selectFemaleVoice(voices);
-        if (femaleVoice) {
-          utterance.voice = femaleVoice;
-        }
-
-        utterance.onstart = () => {
-          setIsSpeaking(true);
-        };
-
-        utterance.onend = () => {
-          setIsSpeaking(false);
-        };
-
-        utterance.onerror = () => {
-          setIsSpeaking(false);
-        };
-
-        utteranceRef.current = utterance;
-        window._activeUtterance = utterance;
-
-        window.speechSynthesis.speak(utterance);
-        setIsSpeaking(true);
-      } catch (e) {
-        setIsSpeaking(false);
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
       }
+
+      const utterance = new SpeechSynthesisUtterance("Welcome to Darshana Akadkar's Developer Control Panel.");
+      utterance.rate = 1.0;
+      utterance.pitch = 1.15;
+      utterance.volume = 1.0;
+      utterance.lang = 'en-US';
+
+      const voices = window.speechSynthesis.getVoices();
+      const femaleVoice = selectFemaleVoice(voices);
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+      }
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+      };
+
+      utteranceRef.current = utterance;
+      window._activeUtterance = utterance;
+
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
+    } catch (e) {
+      setIsSpeaking(false);
     }
   };
 
