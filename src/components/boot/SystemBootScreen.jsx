@@ -163,6 +163,7 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   const isLaunchingRef = useRef(false);
+  const mountTimeRef = useRef(Date.now());
 
   // Rocket Launch Ignition & Transition
   const triggerRocketLaunch = () => {
@@ -209,23 +210,23 @@ const SystemBootScreen = ({ onComplete }) => {
         };
         utterance.onend = () => {
           setIsSpeaking(false);
-          // Launch immediately when voice finishes speaking
-          setTimeout(() => {
-            triggerRocketLaunch();
-          }, 80);
+          const elapsed = Date.now() - mountTimeRef.current;
+          // Only trigger if voice actually played (> 2.2s) to prevent instant Android TTS dismiss
+          if (elapsed >= 2200) {
+            setTimeout(() => {
+              triggerRocketLaunch();
+            }, 250);
+          }
         };
         utterance.onerror = () => {
           setIsSpeaking(false);
-          setTimeout(() => {
-            triggerRocketLaunch();
-          }, 300);
         };
 
         // Retain utterance reference in window & ref to prevent garbage collection
         utteranceRef.current = utterance;
         window._activeUtterance = utterance;
 
-        // Resume speech engine and speak immediately
+        // Resume speech engine and speak
         window.speechSynthesis.resume();
         window.speechSynthesis.speak(utterance);
 
@@ -271,6 +272,7 @@ const SystemBootScreen = ({ onComplete }) => {
   };
 
   useEffect(() => {
+    mountTimeRef.current = Date.now();
     playChime();
     triggerVoiceWelcome(false, false);
 
@@ -286,12 +288,12 @@ const SystemBootScreen = ({ onComplete }) => {
       } else {
         clearInterval(typeInterval);
       }
-    }, 28);
+    }, 34);
 
-    // Safety fallback auto launch in case speech is muted or unsupported
+    // Natural launch timer gives adequate time for voice to complete and user to view screen
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4500);
+    }, 4200);
 
     return () => {
       clearInterval(typeInterval);
