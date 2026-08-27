@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, Volume2, VolumeX, ArrowRight, ShieldCheck, Zap, Bot, MessageSquare, Rocket } from 'lucide-react';
 
 const SystemBootScreen = ({ onComplete }) => {
@@ -6,6 +6,7 @@ const SystemBootScreen = ({ onComplete }) => {
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const hasSpokenRef = useRef(false);
 
   const fullSpeechText = "Welcome to Darshana Akadkar's Developer Control Panel. Initializing systems...";
 
@@ -65,6 +66,9 @@ const SystemBootScreen = ({ onComplete }) => {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
       const ctx = new AudioContext();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
 
       const freqs = [523.25, 659.25, 783.99, 1046.50];
       freqs.forEach((freq, idx) => {
@@ -103,12 +107,15 @@ const SystemBootScreen = ({ onComplete }) => {
     return pool[0] || null;
   };
 
-  // Trigger speech synthesis using strictly male voice with mobile support
+  // Trigger speech synthesis strictly once on landing
   const triggerVoiceWelcome = () => {
     if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
+    if (hasSpokenRef.current) return;
 
     try {
+      hasSpokenRef.current = true;
+
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
@@ -152,6 +159,11 @@ const SystemBootScreen = ({ onComplete }) => {
     setIsLaunching(true);
     playRocketLaunchSound();
 
+    // Immediately stop speech when launching into portfolio
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     setTimeout(() => {
       onComplete();
     }, 950);
@@ -161,18 +173,22 @@ const SystemBootScreen = ({ onComplete }) => {
     playChime();
     triggerVoiceWelcome();
 
-    // Auto-trigger when mobile/browser voices finish loading
+    // Auto-trigger when mobile/browser voices finish loading if not spoken yet
     if ('speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.onvoiceschanged = null;
-        triggerVoiceWelcome();
+        if (!hasSpokenRef.current) {
+          triggerVoiceWelcome();
+        }
       };
     }
 
     // Mobile touch and pointer wake listeners
     const handleTouchWake = () => {
-      playChime();
-      triggerVoiceWelcome();
+      if (!hasSpokenRef.current) {
+        playChime();
+        triggerVoiceWelcome();
+      }
     };
 
     window.addEventListener('touchstart', handleTouchWake, { passive: true, once: true });
@@ -204,6 +220,7 @@ const SystemBootScreen = ({ onComplete }) => {
       window.removeEventListener('click', handleTouchWake);
       window.removeEventListener('keydown', handleTouchWake);
       if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
       }
     };
