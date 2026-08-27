@@ -162,16 +162,15 @@ const SystemBootScreen = ({ onComplete }) => {
     return candidatePool[0] || null;
   };
 
-  // Trigger speech synthesis with female voice guarantee & browser fix
-  const triggerVoiceWelcome = (force = false) => {
+  // Trigger speech synthesis with female voice guarantee & mobile iOS/Android support
+  const triggerVoiceWelcome = (force = false, isDirectGesture = false) => {
     if (isAudioMutedRef.current && !force) return;
     if (!('speechSynthesis' in window)) return;
     if (hasSpokenRef.current && !force) return;
 
-    const speakNow = () => {
+    const speakCore = () => {
       if (isAudioMutedRef.current && !force) return;
       if (hasSpokenRef.current && !force) return;
-      hasSpokenRef.current = true;
 
       try {
         window.speechSynthesis.cancel();
@@ -192,6 +191,7 @@ const SystemBootScreen = ({ onComplete }) => {
         }
 
         utterance.onstart = () => {
+          hasSpokenRef.current = true;
           setIsSpeaking(true);
         };
         utterance.onend = () => {
@@ -205,14 +205,23 @@ const SystemBootScreen = ({ onComplete }) => {
         utteranceRef.current = utterance;
         window._activeUtterance = utterance;
 
-        // Chromium delay after cancel() to ensure speak() is not dropped
-        setTimeout(() => {
-          if (!isAudioMutedRef.current || force) {
-            window.speechSynthesis.resume();
-            window.speechSynthesis.speak(utterance);
-            setIsSpeaking(true);
-          }
-        }, 50);
+        if (isDirectGesture) {
+          // iOS Safari & Mobile: MUST be called synchronously inside user gesture event stack
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(utterance);
+          hasSpokenRef.current = true;
+          setIsSpeaking(true);
+        } else {
+          // Desktop Chromium: brief delay avoids queue cancel conflict
+          setTimeout(() => {
+            if (!isAudioMutedRef.current || force) {
+              window.speechSynthesis.resume();
+              window.speechSynthesis.speak(utterance);
+              hasSpokenRef.current = true;
+              setIsSpeaking(true);
+            }
+          }, 40);
+        }
       } catch (err) {
         setIsSpeaking(false);
       }
@@ -220,12 +229,12 @@ const SystemBootScreen = ({ onComplete }) => {
 
     const initialVoices = window.speechSynthesis.getVoices();
     if (initialVoices && initialVoices.length > 0) {
-      speakNow();
+      speakCore();
     } else {
       // Chrome/Chromium asynchronous voice population on initial page load
       const handleVoicesChanged = () => {
         window.speechSynthesis.onvoiceschanged = null;
-        speakNow();
+        speakCore();
       };
       window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
 
@@ -233,7 +242,7 @@ const SystemBootScreen = ({ onComplete }) => {
       setTimeout(() => {
         if (!hasSpokenRef.current || force) {
           window.speechSynthesis.onvoiceschanged = null;
-          speakNow();
+          speakCore();
         }
       }, 250);
     }
@@ -252,18 +261,20 @@ const SystemBootScreen = ({ onComplete }) => {
 
   useEffect(() => {
     playChime();
-    triggerVoiceWelcome();
+    triggerVoiceWelcome(false, false);
 
-    // Unlock on first user gesture if browser autoplay blocked audio
+    // Unlock on first user gesture (touch/click/tap) for mobile iOS Safari & Android Chrome
     const handleFirstGesture = () => {
-      if (!hasSpokenRef.current && !isAudioMutedRef.current) {
-        triggerVoiceWelcome();
+      if (!isAudioMutedRef.current) {
+        playChime();
+        triggerVoiceWelcome(true, true);
       }
     };
 
     window.addEventListener('click', handleFirstGesture, { passive: true, once: true });
-    window.addEventListener('keydown', handleFirstGesture, { passive: true, once: true });
     window.addEventListener('touchstart', handleFirstGesture, { passive: true, once: true });
+    window.addEventListener('touchend', handleFirstGesture, { passive: true, once: true });
+    window.addEventListener('keydown', handleFirstGesture, { passive: true, once: true });
 
     // Typewriter effect
     let charIdx = 0;
@@ -276,17 +287,18 @@ const SystemBootScreen = ({ onComplete }) => {
       }
     }, 38);
 
-    // Auto trigger rocket launch after speaking
+    // Auto trigger rocket launch after speaking (generous time for mobile viewing)
     const autoLaunchTimer = setTimeout(() => {
       triggerRocketLaunch();
-    }, 4200);
+    }, 6000);
 
     return () => {
       clearInterval(typeInterval);
       clearTimeout(autoLaunchTimer);
       window.removeEventListener('click', handleFirstGesture);
-      window.removeEventListener('keydown', handleFirstGesture);
       window.removeEventListener('touchstart', handleFirstGesture);
+      window.removeEventListener('touchend', handleFirstGesture);
+      window.removeEventListener('keydown', handleFirstGesture);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         window.speechSynthesis.onvoiceschanged = null;
@@ -294,8 +306,17 @@ const SystemBootScreen = ({ onComplete }) => {
     };
   }, []);
 
+  const handleContainerTap = () => {
+    if (!hasSpokenRef.current && !isAudioMutedRef.current) {
+      playChime();
+      triggerVoiceWelcome(true, true);
+    }
+  };
+
   return (
     <div 
+      onClick={handleContainerTap}
+      onTouchStart={handleContainerTap}
       style={{
         position: 'fixed',
         inset: 0,
@@ -404,8 +425,17 @@ const SystemBootScreen = ({ onComplete }) => {
       >
         {/* 3D Robot & Pedestal Container */}
         <div 
-          onClick={() => triggerVoiceWelcome(true)}
-          title="Click to replay AI voice"
+          onClick={(e) => {
+            e.stopPropagation();
+            playChime();
+            triggerVoiceWelcome(true, true);
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            playChime();
+            triggerVoiceWelcome(true, true);
+          }}
+          title="Click or tap to replay AI voice"
           style={{ position: 'relative', width: '240px', height: '230px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem', cursor: 'pointer' }}
         >
           
@@ -578,10 +608,56 @@ const SystemBootScreen = ({ onComplete }) => {
           </div>
         </div>
 
+        {/* Mobile Tap to Activate Audio Pill */}
+        {!isSpeaking && !isAudioMuted && (
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              playChime();
+              triggerVoiceWelcome(true, true);
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              playChime();
+              triggerVoiceWelcome(true, true);
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.4rem 0.85rem',
+              marginBottom: '0.9rem',
+              background: 'rgba(6, 182, 212, 0.15)',
+              border: '1px solid rgba(6, 182, 212, 0.6)',
+              borderRadius: '9999px',
+              color: '#00f3ff',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 0 15px rgba(6, 182, 212, 0.35)',
+              animation: 'pedestalPulse 1.5s infinite alternate'
+            }}
+          >
+            <Volume2 size={14} style={{ color: '#00f3ff' }} />
+            <span>TAP TO HEAR AI VOICE</span>
+            <Sparkles size={12} style={{ color: '#fbbf24' }} />
+          </div>
+        )}
+
         {/* Live Speech Bubble */}
         <div 
-          onClick={() => triggerVoiceWelcome(true)}
-          title="Click to replay AI voice"
+          onClick={(e) => {
+            e.stopPropagation();
+            playChime();
+            triggerVoiceWelcome(true, true);
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            playChime();
+            triggerVoiceWelcome(true, true);
+          }}
+          title="Click or tap to replay AI voice"
           className="eng-card"
           style={{ 
             width: '100%',
