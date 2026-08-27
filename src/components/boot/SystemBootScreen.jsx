@@ -3,7 +3,6 @@ import { Sparkles, Volume2, VolumeX, ArrowRight, ShieldCheck, Zap, Bot, MessageS
 
 const SystemBootScreen = ({ onComplete }) => {
   const [speechBubbleText, setSpeechBubbleText] = useState("");
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const hasSpokenRef = useRef(false);
@@ -109,7 +108,6 @@ const SystemBootScreen = ({ onComplete }) => {
 
   // Trigger speech synthesis strictly once on landing
   const triggerVoiceWelcome = () => {
-    if (isAudioMuted) return;
     if (!('speechSynthesis' in window)) return;
     if (hasSpokenRef.current) return;
 
@@ -284,23 +282,30 @@ const SystemBootScreen = ({ onComplete }) => {
           </span>
         </div>
 
-        {/* Top Bar Controls (Sound & Launch) */}
+        {/* Top Bar Controls (Direct Sound Play & Launch) */}
         <div className="boot-nav-actions">
           <button
             onClick={() => {
-              const nextMuted = !isAudioMuted;
-              setIsAudioMuted(nextMuted);
-              if (nextMuted && 'speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-              }
+              hasSpokenRef.current = false;
+              playChime();
+              triggerVoiceWelcome();
+            }}
+            onTouchStart={() => {
+              hasSpokenRef.current = false;
+              playChime();
+              triggerVoiceWelcome();
             }}
             className="eng-btn-ghost boot-ctrl-btn"
-            title={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
-            aria-label={isAudioMuted ? "Turn Audio ON" : "Turn Audio OFF"}
+            title="Play AI Voice Welcome"
+            aria-label="Play AI Voice Welcome"
+            style={{
+              borderColor: isSpeaking ? '#00f3ff' : 'var(--border-subtle)',
+              color: isSpeaking ? '#00f3ff' : 'var(--text-secondary)'
+            }}
           >
-            {isAudioMuted ? <VolumeX size={14} /> : <Volume2 size={14} style={{ color: 'var(--accent-cyan)' }} />}
-            <span className="boot-btn-text-full">{isAudioMuted ? 'AUDIO: OFF' : 'AUDIO: ON'}</span>
-            <span className="boot-btn-text-short">{isAudioMuted ? 'OFF' : 'ON'}</span>
+            <Volume2 size={14} style={{ color: isSpeaking ? '#00f3ff' : 'var(--accent-cyan)' }} />
+            <span className="boot-btn-text-full">{isSpeaking ? 'AI VOICE SPEAKING' : 'PLAY AUDIO'}</span>
+            <span className="boot-btn-text-short">{isSpeaking ? 'SPEAKING' : 'AUDIO'}</span>
           </button>
 
           <button
